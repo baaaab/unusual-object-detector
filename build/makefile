@@ -8,14 +8,14 @@ SOURCES := $(shell find ../src -name "*.cpp")
 OBJECTS := $(addprefix $(BUILDDIR)/,$(notdir $(SOURCES:%.cpp=%.o)))
 
 CC=g++
+LD=g++
 CFLAGS=-O2 -MMD
-CFLAGS+=-I../include
-LDFLAGS=$(shell curl-config --libs)
-
+CFLAGS+=-I../include -pthread
+LDFLAGS=$(shell curl-config --libs) -lpthread -lSDL -ljpeg -lc -lm -lX11
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
+	$(LD) $(LDFLAGS) $(OBJECTS) -o $(TARGET)
 
 -include $(OBJECTS:.o=.d)
 
