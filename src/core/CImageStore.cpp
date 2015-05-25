@@ -40,12 +40,19 @@ void CImageStore::saveImage(cv::Mat image, uint32_t programCounter)
 	fclose(fh);
 }
 
-cv::Mat CImageStore::fetchImage(uint32_t programCounter)
+std::string CImageStore::fetchImagePath(uint32_t programCounter)
 {
 	uint32_t imageDirNumber = programCounter / 100;
-	std::string imageSubDir = _imageDir + std::string("/") +  std::to_string(imageDirNumber) + std::string("/");
+	std::string imageSubDir = _imageDir + std::string("/") + std::to_string(imageDirNumber) + std::string("/");
 
 	std::string filename = imageSubDir + std::to_string(programCounter) + std::string(".jpg");
+
+	return filename;
+}
+
+cv::Mat CImageStore::fetchImage(uint32_t programCounter)
+{
+	std::string filename = fetchImagePath(programCounter);
 
 	FILE* fh = fopen(filename.c_str(), "rb");
 	if (fh == NULL)

@@ -1,3 +1,4 @@
 *.o
 *.d
 unusual_object_detector
+*.gch

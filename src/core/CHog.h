@@ -2,7 +2,7 @@
 #define CHOG_H_
 
 #include <inttypes.h>
-#include <stdio.h>
+#include <cstdio>
 #include <opencv2/core/core.hpp>
 
 class CModel;

@@ -1,5 +1,7 @@
 #include "CModel.h"
 
+#include "../utils/CSettingsRegistry.h"
+
 CModel::CModel(uint32_t numCellsPerSide, CSettingsRegistry* registry) :
 		_numCellsPerSide(numCellsPerSide),
 		_log2NumCellsPerSide(0),
@@ -127,6 +129,6 @@ bool CModel::handleAtThisLevel(uint32_t level, uint32_t x, uint32_t y)
 			return false;
 		}
 	}
-	return _levels[level][y << _log2NumCellsPerSide + x] == false;
+	return _levels[level][(y << _log2NumCellsPerSide) + x] == false;
 }
 

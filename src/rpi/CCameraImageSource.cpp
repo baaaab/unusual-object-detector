@@ -1,30 +1,46 @@
 #include "CCameraImageSource.h"
 
-#include <raspicam_still_cv.h>
+#include "picam/CCamera.h"
+#include <opencv2/imgproc/imgproc.hpp>
 
 CCameraImageSource::CCameraImageSource()
 {
-	_camera = new raspicam::RaspiCam_Still_Cv();
+	_camera = CCamera::StartCamera(WIDTH, HEIGHT,30,1,true);
 
-	_camera->set(CV_CAP_PROP_FRAME_WIDTH, 512);
-	_camera->set(CV_CAP_PROP_FRAME_HEIGHT, 512);
+	/*_camera->setAWB(raspicam::RASPICAM_AWB_SUNLIGHT);
+	_camera->setEncoding(raspicam::RASPICAM_ENCODING_RGB);
+	_camera->setExposure(raspicam::RASPICAM_EXPOSURE_AUTO);
+	_camera->setSharpness(100);
+	_camera->setQuality(100);
+	_camera->setVerticalFlip(true);
+	_camera->setHorizontalFlip(false);
+	_camera->setRotation(0);*/
 }
 
 CCameraImageSource::~CCameraImageSource()
 {
-	delete _camera;
+	CCamera::StopCamera();
 }
 
 cv::Mat CCameraImageSource::getImage()
 {
-	_camera->open();
-	cv::Mat image;
-	if (!_camera->grab())
-	{
-		throw 1;
-	}
-	_camera->retrieve(image);
+	uint8_t* rgba_data = new uint8_t[WIDTH * HEIGHT * 4];
 
-	return image;
+	int ret = 0;
+	if ((ret = _camera->ReadFrame(0, rgba_data, WIDTH * HEIGHT * 4)) < 0)
+	{
+		printf("%s::%s Error grabbing image from camera! (%d)\n", __FILE__, __FUNCTION__, ret);
+		//throw 1;
+	}
+
+	cv::Mat tmp(HEIGHT, WIDTH, CV_8UC4, rgba_data);
+
+	cv::Mat img(HEIGHT, WIDTH, CV_8UC3);
+
+	cv::cvtColor(tmp, img, CV_RGBA2BGR);
+
+	delete[] rgba_data;
+
+	return img;
 }
 

@@ -1,14 +1,20 @@
 #include "CDisplay.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <X11/Xlib.h>
-#include <mutex>
-#include <math.h>
+#include <cmath>
 #include <unistd.h>
+#include <limits>
+#include <algorithm>
 
-#include "../utils/CAutoScreenLock.h"
-#include "CModel.h"
-#include "CImageStore.h"
+#include "../core/CThread.h"
+#include "CAutoScreenLock.h"
+#include "../core/CModel.h"
+#include "../core/CImageStore.h"
+#include <IJpegHandler.h>
+#include "CJpegHandlerFactory.h"
+#include "../core/CScoreDistribution.h"
 
 namespace
 {
@@ -18,19 +24,21 @@ const uint32_t IMAGE_HEIGHT = 512;
 typedef std::lock_guard<std::recursive_mutex> AutoMutex;
 }
 
-CDisplay::CDisplay(CImageStore* imageStore) :
+CDisplay::CDisplay(CImageStore* imageStore, CScoreDistribution* scoresDistribution) :
+		_shutdownRequested( false ),
 		_screen( NULL),
 		_windowWidth(IMAGE_WIDTH * 2),
 		_windowHeight(IMAGE_HEIGHT + 140),
 		_jpegHandler( NULL),
 		_imageStore(imageStore),
-		_thread( NULL),
+		_scoresDistribution( scoresDistribution ),
 		_matchedImageId(0xffffffff),
 		_matchedImageScore(0.0f),
 		_matchedImageIsUnusual(false),
 		_matchedImageNeedsReloading(true),
 		_firstImageReceived(false),
 		_firstMatchReceived(false),
+		_thread( NULL ),
 		_loadingCounter(0)
 {
 	XInitThreads();
@@ -44,17 +52,18 @@ CDisplay::CDisplay(CImageStore* imageStore) :
 	{
 		fprintf(stderr, "Could not set SDL video mode: %s\n", SDL_GetError());
 		SDL_Quit();
-		exit(1);
+		throw 1;
 	}
 	SDL_WM_SetCaption("Unusual Object Detector", "Unusual Object Detector");
 
-	_jpegHandler = new CTurboJpegHandler();
+	_jpegHandler = CJpegHandlerFactory::GetHandler();
 
-	_thread = new std::thread(DisplayThread, this);
+	_thread = new CThread(DisplayThread, this);
 }
 
 CDisplay::~CDisplay()
 {
+	_shutdownRequested = true;
 	delete _thread;
 	delete _jpegHandler;
 	_imageStore = NULL;
@@ -91,9 +100,8 @@ void CDisplay::displayThread()
 	uint32_t red = setColour(200, 0, 0);
 	uint32_t green = setColour(0, 200, 0);
 	uint32_t white = setColour(255, 255, 255);
-	uint32_t blue = setColour(0, 0, 255);
 
-	while (1)
+	while (!_shutdownRequested)
 	{
 		while (SDL_PollEvent(&_event))
 		{
@@ -106,13 +114,12 @@ void CDisplay::displayThread()
 				//printf("Mouse button %d pressed at (%d,%d)\n", event.button.button, event.button.x, event.button.y);
 				break;
 			case SDL_QUIT:
-				exit(0);
+				_shutdownRequested = true;
 			}
 		}
 
 		if (_firstImageReceived && _firstMatchReceived)
 		{
-
 			//fetch match image
 			if(_matchedImageNeedsReloading)
 			{
@@ -126,8 +133,8 @@ void CDisplay::displayThread()
 
 			{
 				AutoMutex am(_mutex);
-				blit(_sourceImage.data, IMAGE_WIDTH, IMAGE_HEIGHT, 0, 20, 3);
-				blit(_matchedImage.data, IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_WIDTH, 20, 3);
+				blit(_sourceImage, 0, 20);
+				blit(_matchedImage, IMAGE_WIDTH, 20);
 				lastImageWasUnusual = _matchedImageIsUnusual;
 			}
 
@@ -145,29 +152,7 @@ void CDisplay::displayThread()
 
 			drawRectangle(0, IMAGE_HEIGHT + 20, 2 * IMAGE_WIDTH - 1, IMAGE_HEIGHT + 120, white);
 
-			/*int i;
-			 int h;
-			 float min = 9999999999.0f, max = 0;
-			 for (i = 0; i < 1024; i++)
-			 {
-			 min = (dp->scores[i] < min) ? dp->scores[i] : min;
-			 max = (dp->scores[i] > max) ? dp->scores[i] : max;
-			 }
-			 int start = *(dp->program_counter) % 1024;
-			 int l;
-			 if (max != 0.0f)
-			 {
-			 for (i = 0; i < 1024; i++)
-			 {
-			 h = (int) (100 * ((dp->scores[(i + start) % 1024] - min) / (max - min)));
-			 //set_pixel(dp->screen, i, 632 - h, blue);
-			 if (i != 0)
-			 {
-			 draw_straight_line(dp->screen, i, 632 - h, i, 632 - l, blue);
-			 }
-			 l = h;
-			 }
-			 }*/
+			drawScoreDistribution();
 		}
 		else
 		{
@@ -199,26 +184,18 @@ void CDisplay::displayThread()
 	}
 }
 
-void CDisplay::blit(unsigned char* image, int width, int height, int x, int y, int bpp)
+void CDisplay::blit(cv::Mat image, int x, int y)
 {
-	if (bpp == 3)
+	if (image.channels() == 3)
 	{
-		for (int32_t a = 0; a < height; a++)
+		for (int32_t a = 0; a < image.rows; a++)
 		{
-			for (int32_t b = 0; b < width; b++)
+			for (int32_t b = 0; b < image.cols; b++)
 			{
-				uint32_t c = setColour(*(image + 3 * (a * width + b) + 2), *(image + 3 * (a * width + b) + 1), *(image + 3 * (a * width + b)));
-				setPixel(x + b, y + a, c);
-			}
-		}
-	}
-	else
-	{
-		for (int32_t a = 0; a < height; a++)
-		{
-			for (int32_t b = 0; b < width; b++)
-			{
-				uint32_t c = setColour(*(image + (a * width + b)), *(image + (a * width + b)), *(image + (a * width + b)));
+				uint8_t red = *(image.data + a * image.step.buf[0] + 3*b + 2);
+				uint8_t green = *(image.data + a * image.step.buf[0] + 3*b + 1);
+				uint8_t blue = *(image.data + a * image.step.buf[0] + 3*b);
+				uint32_t c = setColour(red, green, blue);
 				setPixel(x + b, y + a, c);
 			}
 		}
@@ -351,37 +328,57 @@ void CDisplay::drawModel(CModel* f)
 {
 	int curr_level;
 	int edge_this_level;
-	int edge_last_level;
-	int array_offset;
-	int bit_offset;
-	int last_array_offset;
-	int last_bit_offset;
 	int sqy, sqx;
-	int offsets[] =
-	{ 0, 1, 2, 3, 5, 13 };
-
-	float score = 0;
 
 	uint32_t black = setColour(0, 0, 0);
 	drawRectangle(0, 0, IMAGE_WIDTH - 1, IMAGE_HEIGHT - 1, black);
 	for (curr_level = 0; curr_level < 7; curr_level++)
 	{
 		edge_this_level = 1 << curr_level;
-		edge_last_level = edge_this_level >> 1;
 
 		for (sqy = 0; sqy < edge_this_level; sqy++)
 		{
 			for (sqx = 0; sqx < edge_this_level; sqx++)
 			{
 				//offsets for current level
-				array_offset = offsets[curr_level] + ((sqy * edge_this_level) / 32);
-				bit_offset = (sqy * edge_this_level + sqx) % 32;
-
 				if (f->handleAtThisLevel(curr_level, sqx, sqy))
 				{
 					drawQuadrants(curr_level, sqx, sqy);
 				}
 			}
+		}
+	}
+}
+
+void CDisplay::drawScoreDistribution()
+{
+	uint32_t index = 0;
+	std::vector<float> scores;
+
+	_scoresDistribution->getScoreDistribution(&index, &scores);
+
+	int32_t width = std::min(scores.size(), _windowWidth);
+
+	float min = std::numeric_limits<float>::max();
+	float max = 0;
+
+	for (uint32_t i = 0; i < width; i++)
+	{
+		min = (scores[i] < min) ? scores[i] : min;
+		max = (scores[i] > max) ? scores[i] : max;
+	}
+
+	int32_t start = index - width;
+	if (max != 0.0f)
+	{
+		uint32_t l = 0;
+		uint32_t blue = setColour(0,0, 255);
+		for (int32_t i = 0; i < width; i++)
+		{
+			uint32_t h = (uint32_t) (100 * ((scores[(i + start) % scores.size()] - min) / (max - min)));
+
+			drawStraightLine(i, 632 - h, i, 632 - l, blue);
+			l = h;
 		}
 	}
 }

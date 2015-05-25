@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "../utils/CSettingsRegistry.h"
+class CSettingsRegistry;
 
 class CModel
 {

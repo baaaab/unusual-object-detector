@@ -3,10 +3,7 @@
 
 #include <IImageSource.h>
 
-namespace raspicam
-{
-	class RaspiCam_Still_Cv;
-}
+class CCamera;
 
 class CCameraImageSource: public IImageSource
 {
@@ -17,7 +14,10 @@ public:
 	cv::Mat getImage();
 
 private:
-	raspicam::RaspiCam_Still_Cv* _camera;
+	CCamera* _camera;
+
+	static const uint32_t WIDTH = 512;
+	static const uint32_t HEIGHT = 512;
 };
 
 #endif /* CCAMERAIMAGESOURCE_H_ */

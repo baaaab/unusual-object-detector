@@ -13,6 +13,9 @@ public:
 
 	void setSourceImage(uint32_t imageId, cv::Mat sourceImage);
 	void setMatchImage(uint32_t imageId, float score, bool isUnusual);
+
+private:
+	CImageStore* _imageStore;
 };
 
 #endif /* CLIVENOTIFIER_H_ */

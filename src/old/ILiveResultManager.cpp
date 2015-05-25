@@ -2,9 +2,11 @@
 
 #include "../core/CImageStore.h"
 
+#include "CLiveNotifier.h"
+
 ILiveResultManager* ILiveResultManager::GetResultManager(CImageStore* imageStore)
 {
-	return new CDisplay(imageStore);
+	return new CLiveNotifier(imageStore);
 }
 
 

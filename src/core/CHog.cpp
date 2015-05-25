@@ -1,7 +1,7 @@
 #include "CHog.h"
 
-#include <math.h>
-#include <CModel.h>
+#include <cmath>
+#include "CModel.h"
 
 #include <error.h>
 
@@ -15,24 +15,25 @@ CHog::CHog(uint32_t cellSize, uint32_t numCellsPerSide, FILE* fh) :
 		_lastBestMatch(0),
 		_active(true)
 {
+	_values = new uint16_t[_numBins * _cellsPerSide * _cellsPerSide];
+
 	if (fh == NULL)
 	{
-		//allocate and fill with zeros
-		_values = new uint16_t[_numBins * _cellsPerSide * _cellsPerSide];
+		//fill with zeros
 		memset(_values, 0, sizeof(_values[0]) * _numBins * _cellsPerSide * _cellsPerSide);
 	}
 	else
 	{
-		//allocate and read from file handle
+		//read from file handle
 		_values = new uint16_t[_numBins * _cellsPerSide * _cellsPerSide];
 
-		uint32_t tmp;
+		uint32_t tmp = 0xdeadbeef;
 
 		fread(&tmp, 1, sizeof(tmp), fh);
 
 		if (tmp != _magic)
 		{
-			printf("%s::%s Error reading HOGs from file: data is corrupted\n", __FILE__, __FUNCTION__);
+			printf("%s::%s Error reading HOGs from file: data is corrupted (%08x != %08x)\n", __FILE__, __FUNCTION__, tmp, _magic);
 			throw 1;
 		}
 
@@ -76,7 +77,7 @@ CHog::CHog(uint32_t cellSize, uint32_t numCellsPerSide, cv::Mat sobelX, cv::Mat 
 
 					float magnitude = sqrtf((float) ((float) sobelY.data[py * width + px] * (float) sobelY.data[py * width + px]) + ((float) sobelX.data[py * width + px] * (float) sobelX.data[py * width + px]));
 
-					uint32_t index = (uint32_t) floor(4 * (0.99999 + angle / (float) M_PI));
+					uint32_t index = (uint32_t) floor(4 * (0.99999f + angle / (float) M_PI));
 
 					histogram[index] += magnitude;
 				}
@@ -165,11 +166,12 @@ uint32_t CHog::write(FILE* fh)
 	bytesWritten += fwrite(&_active, 1, sizeof(_active), fh);
 	uint32_t valueBytesWritten = 0;
 	uint32_t bob = 0;
-	while((bob = fwrite(_values + valueBytesWritten, 1, sizeof(_values[0]) * _numBins * _cellsPerSide * _cellsPerSide - valueBytesWritten, fh)))
+	while((bob = fwrite(_values + valueBytesWritten, 1, sizeof(_values[0]) * (uint32_t)_numBins * _cellsPerSide * _cellsPerSide - valueBytesWritten, fh)))
 	{
 		valueBytesWritten += bob;
 	}
 	bytesWritten += valueBytesWritten;
+
 	return bytesWritten;
 }
 

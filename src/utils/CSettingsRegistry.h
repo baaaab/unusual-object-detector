@@ -3,7 +3,7 @@
 
 #include "tinyxml2.h"
 
-#include <inttypes.h>
+#include <cstdint>
 #include <string>
 
 class CSettingsRegistry

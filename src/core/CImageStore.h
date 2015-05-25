@@ -14,6 +14,8 @@ public:
 	virtual ~CImageStore();
 
 	void saveImage(cv::Mat image, uint32_t programCounter);
+
+	std::string fetchImagePath(uint32_t programCounter);
 	cv::Mat fetchImage(uint32_t programCounter);
 
 private:

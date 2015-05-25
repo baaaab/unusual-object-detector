@@ -5,6 +5,7 @@
 #include <opencv2/opencv.hpp>
 
 class CImageStore;
+class CScoreDistribution;
 
 class ILiveResultManager
 {
@@ -12,7 +13,7 @@ public:
 	ILiveResultManager(){};
 	virtual ~ILiveResultManager(){};
 
-	static ILiveResultManager* GetResultManager(CImageStore* imageStore);
+	static ILiveResultManager* GetResultManager(CImageStore* imageStore, CScoreDistribution* scoresDistribution);
 
 	virtual void setSourceImage(uint32_t imageId, cv::Mat sourceImage) = 0;
 	virtual void setMatchImage(uint32_t imageId, float score, bool isUnusual) = 0;

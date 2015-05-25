@@ -18,10 +18,11 @@ void sigHandler(int signo);
 
 void printUsage(const char* program)
 {
-	printf("Usage: %s project_file [first_run_args]\n"
-			"\t First run args:\n"
-			"\t\t -n number_of_comparison_images [> 100]\n"
-			"\t\t -i image_folder\n", program);
+	printf("Usage: %s project_file [first_run_args]\n", program);
+	printf("\t First run args:\n");
+	printf("\t\t -n number_of_comparison_images [> 100]\n");
+	printf("\t\t -i image_folder\n");
+	printf("\t\t [-t num_threads = 1]\n");
 }
 
 int main(int argc, char* argv[])
@@ -43,6 +44,7 @@ int main(int argc, char* argv[])
 			registry.getUInt32("core", "programCounter");
 			registry.getUInt32("core", "imageCount");
 			registry.getString("core", "imageDir");
+			registry.getString("core", "numThreads");
 		}
 		catch (...)
 		{
@@ -58,7 +60,7 @@ int main(int argc, char* argv[])
 
 		//check if this is a valid configuration - it will be overwritten if it is
 		CSettingsRegistry registry(argv[1]);
-		bool configurationIsValid = true;
+		configurationIsValid = true;
 		try
 		{
 			registry.getUInt32("core", "programCounter");
@@ -78,9 +80,10 @@ int main(int argc, char* argv[])
 		std::string imageUrl;
 		uint32_t imageCount = 0;
 		std::string imageDir;
+		uint32_t numThreads = 1;
 
 		int c;
-		while ((c = getopt(argc-1, argv+1, "n:i:")) != -1)
+		while ((c = getopt(argc-1, argv+1, "n:i:t:")) != -1)
 		{
 			switch (c)
 			{
@@ -90,8 +93,11 @@ int main(int argc, char* argv[])
 			case 'i':
 				imageDir = optarg;
 				break;
+			case 't':
+				numThreads = strtoul(optarg, NULL, 10);
+				break;
 			case '?':
-				if (optopt == 'n' || optopt == 'i')
+				if (optopt == 'n' || optopt == 'i' || optopt == 't')
 				{
 					fprintf(stderr, "Option -%c requires an argument.\n", optopt);
 				}
@@ -109,17 +115,11 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		if (imageCount < 100)
-		{
-			printf("There must be at least 100 comparison images!\n");
-			printUsage(argv[0]);
-			return 1;
-		}
-
 		struct stat pathInfo;
 		if (stat(imageDir.c_str(), &pathInfo) == -1)
 		{
 			printf("Error accessing image directory: %s\n", imageDir.c_str());
+			perror(__FILE__);
 			printUsage(argv[0]);
 			return 1;
 		}
@@ -142,6 +142,7 @@ int main(int argc, char* argv[])
 		registry.setUInt32("core", "programCounter", 0);
 		registry.setUInt32("core", "imageCount", imageCount);
 		registry.setString("core", "imageDir", imageDir);
+		registry.setUInt32("core", "numThreads", numThreads);
 
 		//create dirs/files
 		std::string modelDir = imageDir.append("/model");
@@ -149,7 +150,7 @@ int main(int argc, char* argv[])
 		mkdir(modelDir.c_str(), 0775);
 
 		std::string hogStoreFilename = modelDir + std::string("/hogs.dat");
-		FILE* fh = fopen(hogStoreFilename.c_str(), "wb");
+		FILE* fh = fopen(hogStoreFilename.c_str(), "w");
 		CHog emptyHog(HOG_CELL_SIZE, HOG_NUM_CELLS, NULL);
 		for (uint32_t i = 0; i < imageCount; i++)
 		{
@@ -162,7 +163,22 @@ int main(int argc, char* argv[])
 		CModel defaultModel(HOG_NUM_CELLS, &registry);
 		defaultModel.saveToRegistry();
 
+		std::string scoresDistributionFilename = modelDir + std::string("/scores.dat");
+		fh = fopen(scoresDistributionFilename.c_str(), "w");
+		float f = 0;
+		for (uint32_t i = 0; i < imageCount; i++)
+		{
+			fwrite(&f, 1, sizeof(float), fh);
+		}
+		fclose(fh);
+
 		configurationIsValid = true;
+	}
+
+	if(!configurationIsValid)
+	{
+		printf("Configuration is invalid!\n");
+		return 1;
 	}
 
 	signal(SIGINT, sigHandler);
