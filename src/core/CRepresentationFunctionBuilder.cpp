@@ -1,11 +1,14 @@
 #include "CRepresentationFunctionBuilder.h"
 
-#include "CHog.h"
+#include <algorithm>
+#include <cstdint>
 
-CRepresentationFunctionBuilder::CRepresentationFunctionBuilder(CModel* model, std::vector<CHog*>::iterator hogBegin, std::vector<CHog*>::iterator hogEnd) :
+#include "CHog.h"
+#include "CHogStore.h"
+
+CRepresentationFunctionBuilder::CRepresentationFunctionBuilder(CModel* model, CHogStore* hogStore) :
 	_model( model ),
-	_hogBegin( hogBegin ),
-	_hogEnd( hogEnd )
+	_hogStore( hogStore )
 {
 }
 
@@ -18,12 +21,12 @@ void CRepresentationFunctionBuilder::scoreModel(CUnusualObjectDetector::task_t* 
 	task->smt.score = 0.0f;
 	float totalScore = 0.0f;
 
-	for (auto cItr = task->smt.cBegin; cItr != task->smt.cEnd && !task->shutdownRequested; ++cItr)
+	for (uint32_t c = task->smt.cBegin; c < task->smt.cEnd && !task->shutdownRequested; c++)
 	{
 		float bestScore = 0.0f;
-		for (auto xItr = task->smt.xBegin; xItr != task->smt.xEnd && !task->shutdownRequested; ++xItr)
+		for (uint32_t x = task->smt.xBegin; x < task->smt.xEnd && !task->shutdownRequested; x++)
 		{
-			bestScore = std::max(bestScore, CHog::Correlate(*cItr, *xItr, _model));
+			bestScore = std::max(bestScore, CHog::Correlate(_hogStore->at(c), _hogStore->at(x), _model));
 		}
 		totalScore += bestScore;
 	}

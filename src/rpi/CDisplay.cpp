@@ -434,8 +434,8 @@ void CDisplay::drawHeatMap()
 
 	if(_matchedImage.channels() != 3 || _sourceImage.channels() != 3) return;
 
-	CHog bestMatchHog(HOG_CELL_SIZE, HOG_NUM_CELLS, _matchedImage, 0);
-	CHog sourceimageHog(HOG_CELL_SIZE, HOG_NUM_CELLS, _sourceImage, 0);
+	CHog bestMatchHog(_matchedImage, 0);
+	CHog sourceimageHog(_sourceImage, 0);
 
 	uint32_t numLevels = _model->getNumLevels();
 	const uint32_t NUM_BINS = 8;

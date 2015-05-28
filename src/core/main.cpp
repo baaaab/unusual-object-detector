@@ -152,13 +152,13 @@ int main(int argc, char* argv[])
 
 		std::string hogStoreFilename = modelDir + std::string("/hogs.dat");
 		FILE* fh = fopen(hogStoreFilename.c_str(), "w");
-		CHog emptyHog(HOG_CELL_SIZE, HOG_NUM_CELLS, NULL);
+		CHog* emptyHog = new CHog();
 		for (uint32_t i = 0; i < imageCount; i++)
 		{
-			emptyHog.write(fh);
+			emptyHog->write(fh);
 		}
-
 		fclose(fh);
+		delete emptyHog;
 
 		CModel defaultModel(HOG_NUM_CELLS, &registry);
 		defaultModel.saveToRegistry();

@@ -13,6 +13,7 @@
 
 #include "CImageStore.h"
 #include "CHog.h"
+#include "CHogStore.h"
 #include "CModel.h"
 #include "CScoreDistribution.h"
 #include "CRepresentationFunctionBuilder.h"
@@ -35,6 +36,7 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 		_registry( NULL),
 		_imageStore( NULL),
 		_resultManager( NULL),
+		_hogStore( NULL ),
 
 		_model( NULL),
 		_imageSource( NULL),
@@ -64,22 +66,11 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 
 	_resultManager = ILiveResultManager::GetResultManager(_imageStore, _scoreDistrubution, _model);
 
-	_hogs.resize(_imageCount);
-	_hogStoreFilename = modelDir + std::string("/hogs.dat");
-	FILE* fh = fopen(_hogStoreFilename.c_str(), "rb");
-	if(!fh)
-	{
-		throw 1;
-	}
-
-	for (uint32_t i = 0; i < _imageCount; i++)
-	{
-		_hogs[i] = new CHog(HOG_CELL_SIZE, HOG_NUM_CELLS, fh);
-	}
-	fclose(fh);
+	std::string hogStoreFilename = modelDir + std::string("/hogs.dat");
+	_hogStore = new CHogStore(hogStoreFilename, _imageCount);
 
 	_imageSource = IImageSource::GetSource(_registry);
-	_representationFunctionBuilder = new CRepresentationFunctionBuilder(_model, _hogs.begin(), _hogs.end());
+	_representationFunctionBuilder = new CRepresentationFunctionBuilder(_model, _hogStore);
 
 	initialiseWorkerThreads();
 
@@ -107,17 +98,10 @@ CUnusualObjectDetector::~CUnusualObjectDetector()
 	delete _scoreDistrubution;
 	delete _imageSource;
 	delete _model;
-
-	for (uint32_t i = 0; i < _imageCount; i++)
-	{
-		delete _hogs[i];
-	}
-
+	delete _hogStore;
 	delete _resultManager;
 	delete _imageStore;
 	delete _registry;
-
-	delete _newHog;
 }
 
 CUnusualObjectDetector::task_t::task_t() :
@@ -144,13 +128,10 @@ void CUnusualObjectDetector::initialiseWorkerThreads()
 	uint32_t hogRemainder = _imageCount % hogsPerThread;
 	uint32_t hogOffset = 0;
 
-	auto cBegin = _hogs.begin();
-	auto cEnd = cBegin + 3 * _imageCount / 4;
-
-	uint32_t numClusters = cEnd - cBegin;
+	uint32_t numClusters = 3 * _imageCount / 4;
 	uint32_t clustersPerThread = numClusters / numThreads;
 	uint32_t clusterRemainder = numClusters % numThreads;
-	auto clusterOffset = cBegin;
+	uint32_t clusterOffset = 0;
 
 	for (uint32_t i = 0; i < numThreads; i++)
 	{
@@ -175,8 +156,8 @@ void CUnusualObjectDetector::initialiseWorkerThreads()
 		task->smt.cEnd = clusterOffset;
 
 		//same for all threads
-		task->smt.xBegin = cEnd;
-		task->smt.xEnd = _hogs.end();
+		task->smt.xBegin = numClusters;
+		task->smt.xEnd = _imageCount;
 
 		_tasks.push_back(task);
 
@@ -201,7 +182,7 @@ void CUnusualObjectDetector::mainThreadFunction()
 
 	while (!_shutdownRequested)
 	{
-		if(_programCounter == _imageCount || (_programCounter != 0 && _programCounter % 10000 == 0))
+		if(_programCounter == _imageCount || (_programCounter != 0 && _programCounter % _imageCount == 0))
 		{
 			buildRepresentationFunction();
 			if(_shutdownRequested)
@@ -224,7 +205,7 @@ void CUnusualObjectDetector::mainThreadFunction()
 		_resultManager->setSourceImage(_programCounter, resizedImage);
 		_imageStore->saveImage(resizedImage, _programCounter);
 
-		_newHog = new CHog(HOG_CELL_SIZE, HOG_NUM_CELLS, resizedImage, _programCounter);
+		_newHog = new CHog(resizedImage, _programCounter);
 
 		dispatchWorkerThreads(JOB_CORRELATE_HOGS);
 		waitForWorkerThreadCompletion();
@@ -241,12 +222,12 @@ void CUnusualObjectDetector::mainThreadFunction()
 			}
 		}
 
-		printf("[%6u] Best match = %u, score = %f", _programCounter, _hogs[bestMatch]->getCreatedAt(), maxScore);
+		printf("[%6u] Best match = %u, score = %f", _programCounter, _hogStore->at(bestMatch).getCreatedAt(), maxScore);
 
 		bool isUnusual = _programCounter > _imageCount && _scoreDistrubution->isScoreLow(maxScore);
 		_scoreDistrubution->logScore(maxScore);
 
-		_resultManager->setMatchImage(_hogs[bestMatch]->getCreatedAt(), maxScore, isUnusual);
+		_resultManager->setMatchImage(_hogStore->at(bestMatch).getCreatedAt(), maxScore, isUnusual);
 		if(isUnusual)
 		{
 			//save file
@@ -259,15 +240,8 @@ void CUnusualObjectDetector::mainThreadFunction()
 		{
 			printf("\n");
 
-			_hogs[_programCounter] = _newHog;
-
-			FILE* fh = fopen(_hogStoreFilename.c_str(), "r+b");
-			if (fh)
-			{
-				fseek(fh, _programCounter * _hogs[_programCounter]->getSizeBytes(), SEEK_SET);
-				_hogs[_programCounter]->write(fh);
-			}
-			fclose(fh);
+			_hogStore->at(_programCounter) = *_newHog;
+			_hogStore->write(_programCounter);
 		}
 		else
 		{
@@ -276,53 +250,42 @@ void CUnusualObjectDetector::mainThreadFunction()
 			uint32_t oldestZeroHitHog = _programCounter;
 			float lowestRelevance = 1.0f;
 
-			for(auto itr = _hogs.begin(); itr != _hogs.end(); ++itr)
+			for(auto itr = _hogStore->begin(); itr != _hogStore->end(); ++itr)
 			{
-				uint32_t age = _programCounter - (*itr)->getCreatedAt();
+				uint32_t age = _programCounter - itr->getCreatedAt();
 				if(age < _imageCount / 4)
 				{
 					continue;
 				}
 
-				if((*itr)->getNumHits() == 0 && (*itr)->getCreatedAt() < oldestZeroHitHog)
+				if(itr->getNumHits() == 0 && itr->getCreatedAt() < oldestZeroHitHog)
 				{
 					lowestRelevance = 0.0f;
-					oldestZeroHitHog = (*itr)->getCreatedAt();
-					leastRelevantHogIndex = itr - _hogs.begin();
+					oldestZeroHitHog = itr->getCreatedAt();
+					leastRelevantHogIndex = itr - _hogStore->begin();
 					continue;
 				}
 
-				float relevance = (float)(*itr)->getNumHits() / (float)(age);
+				float relevance = (float)itr->getNumHits() / (float)(age);
 
 				if(relevance < lowestRelevance)
 				{
 					lowestRelevance = relevance;
-					leastRelevantHogIndex = itr - _hogs.begin();
+					leastRelevantHogIndex = itr - _hogStore->begin();
 				}
 			}
 
 			printf(" replacing: %u, relevance = %f\n", leastRelevantHogIndex, lowestRelevance);
 
-			CHog* oldHog = _hogs[leastRelevantHogIndex];
-			_hogs[leastRelevantHogIndex] = _newHog;
-			delete oldHog;
+			_hogStore->at(leastRelevantHogIndex) = *_newHog;
+			_hogStore->write(leastRelevantHogIndex);
 
-			FILE* fh = fopen(_hogStoreFilename.c_str(), "r+b");
-			if (fh)
-			{
-				fseek(fh, leastRelevantHogIndex * _newHog->getSizeBytes(), SEEK_SET);
-				_newHog->write(fh);
-
-				_hogs[bestMatch]->setMostRecentMatch(_programCounter);
-				_hogs[bestMatch]->incrementHits();
-
-				fseek(fh, bestMatch * _newHog->getSizeBytes(), SEEK_SET);
-				_hogs[bestMatch]->write(fh);
-			}
-			fclose(fh);
-
+			_hogStore->at(bestMatch).setMostRecentMatch(_programCounter);
+			_hogStore->at(bestMatch).incrementHits();
+			_hogStore->write(bestMatch);
 		}
 
+		delete _newHog;
 		_newHog = NULL;
 
 		_programCounter++;
@@ -409,7 +372,7 @@ void CUnusualObjectDetector::correlateHogs(task_t* task)
 
 	for (uint32_t i = task->hct.startIndex; i < task->hct.endIndex && !task->shutdownRequested; i++)
 	{
-		float score = CHog::Correlate(_newHog, _hogs[i], _model);
+		float score = CHog::Correlate(*_newHog, _hogStore->at(i), _model);
 
 		if (score > task->hct.highestScore)
 		{
@@ -424,14 +387,28 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 	_model->resetModel();
 
 	//sort hogs
-	std::sort(_hogs.begin(), _hogs.end(), CHog::CompareCreated);
+	std::sort(_hogStore->begin(), _hogStore->end(), CHog::CompareCreated);
 
 	uint32_t numSplittableLevels = _model->getNumLevels() - 1;
 
 	float scoreToBeat = 0.0f;
 
+	for (uint32_t level = 0; level < 2 && !_shutdownRequested; level++)
+	{
+		uint32_t edgeCellsThisLevel = 1 << level;
+		for (uint32_t y = 0; y < edgeCellsThisLevel && !_shutdownRequested; y++)
+		{
+			for (uint32_t x = 0; x < edgeCellsThisLevel && !_shutdownRequested; x++)
+			{
+				//try splitting at this level to see if score increases
+				_model->setHandleAtThisLevel(level, x, y, true);
+			}
+		}
+	}
+
 	dispatchWorkerThreads(JOB_SCORE_MODEL);
 	waitForWorkerThreadCompletion();
+
 
 	//read scores from worker threads
 	for (auto itr = _tasks.begin(); itr != _tasks.end(); ++itr)
@@ -439,7 +416,7 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 		scoreToBeat = std::max(scoreToBeat, (*itr)->smt.score);
 	}
 
-	for (uint32_t level = 0; level < numSplittableLevels && !_shutdownRequested; level++)
+	for (uint32_t level = 2; level < numSplittableLevels && !_shutdownRequested; level++)
 	{
 		uint32_t edgeCellsThisLevel = 1 << level;
 		for (uint32_t y = 0; y < edgeCellsThisLevel && !_shutdownRequested; y++)

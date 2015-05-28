@@ -6,19 +6,19 @@
 
 class CModel;
 class CHog;
+class CHogStore;
 
 class CRepresentationFunctionBuilder
 {
 public:
-	CRepresentationFunctionBuilder(CModel* model, std::vector<CHog*>::iterator hogBegin, std::vector<CHog*>::iterator hogEnd);
+	CRepresentationFunctionBuilder(CModel* model, CHogStore* hogStore);
 	virtual ~CRepresentationFunctionBuilder();
 
 	void scoreModel(CUnusualObjectDetector::task_t* task);
 
 private:
 	CModel* _model;
-	std::vector<CHog*>::iterator _hogBegin;
-	std::vector<CHog*>::iterator _hogEnd;
+	CHogStore* _hogStore;
 };
 
 #endif /* CREPRESENTATIONFUNCTIONBUILDER_H_ */

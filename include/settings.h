@@ -5,5 +5,6 @@
 
 const uint32_t HOG_CELL_SIZE = 8;
 const uint32_t HOG_NUM_CELLS = 64;
+const uint32_t HOG_NUM_BINS = 8;
 
 #endif /* SETTINGS_H_ */

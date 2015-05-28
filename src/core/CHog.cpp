@@ -1,48 +1,52 @@
 #include "CHog.h"
 
-#include <cmath>
-#include "CModel.h"
-
-#include <error.h>
-
-#include <opencv2/core/mat.hpp>
 #include <opencv2/core/operations.hpp>
+#include <opencv2/core/types_c.h>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/imgproc/types_c.h>
+#include <cmath>
+#include <cstdint>
 
-const uint32_t CHog::_magic = 0x2955a6a5;
+#include "../../include/settings.h"
+#include "CModel.h"
 
 namespace{
 //for float -> uint16_t conversions
 const float SCALING_VALUE = 65535.0f;
+const uint32_t MAGIC = 0x2955a6a5;
 }
 
-CHog::CHog(uint32_t cellSize, uint32_t numCellsPerSide, FILE* fh) :
-		_cellSize( cellSize ),
-		_cellsPerSide( numCellsPerSide ),
+CHog::CHog() :
+		_values( NULL),
+		_createdAt(0),
+		_lastBestMatch(0),
+		_numHits(0)
+{
+	_values = new uint16_t[HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS];
+}
+
+CHog::CHog(FILE* fh) :
 		_values( NULL ),
 		_createdAt( 0 ),
 		_lastBestMatch( 0 ),
 		_numHits( 0 )
 {
-	_values = new uint16_t[_numBins * _cellsPerSide * _cellsPerSide];
+	_values = new uint16_t[HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS];
 
 	if (fh == NULL)
 	{
 		//fill with zeros
-		memset(_values, 0, sizeof(_values[0]) * _numBins * _cellsPerSide * _cellsPerSide);
+		memset(_values, 0, sizeof(*_values) * HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS);
 	}
 	else
 	{
-		//read from file handle
-		_values = new uint16_t[_numBins * _cellsPerSide * _cellsPerSide];
-
 		uint32_t tmp = 0xdeadbeef;
 
 		fread(&tmp, 1, sizeof(tmp), fh);
 
-		if (tmp != _magic)
+		if (tmp != MAGIC)
 		{
-			printf("%s::%s Error reading HOGs from file: data is corrupted (%08x != %08x)\n", __FILE__, __FUNCTION__, tmp, _magic);
+			printf("%s::%s Error reading HOGs from file: data is corrupted (%08x != %08x)\n", __FILE__, __FUNCTION__, tmp, MAGIC);
 			throw 1;
 		}
 
@@ -50,14 +54,11 @@ CHog::CHog(uint32_t cellSize, uint32_t numCellsPerSide, FILE* fh) :
 		fread(&_lastBestMatch, 1, sizeof(_lastBestMatch), fh);
 		fread(&_numHits, 1, sizeof(_numHits), fh);
 
-		fread(_values, 1, sizeof(_values[0]) * _numBins * _cellsPerSide * _cellsPerSide, fh);
-
+		fread(_values, sizeof(*_values), HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS, fh);
 	}
 }
 
-CHog::CHog(uint32_t cellSize, uint32_t numCellsPerSide, cv::Mat image, uint32_t programCounter) :
-		_cellSize( cellSize ),
-		_cellsPerSide( numCellsPerSide ),
+CHog::CHog(cv::Mat image, uint32_t programCounter) :
 		_values( NULL ),
 		_createdAt( programCounter ),
 		_lastBestMatch( programCounter ),
@@ -75,24 +76,24 @@ CHog::CHog(uint32_t cellSize, uint32_t numCellsPerSide, cv::Mat image, uint32_t 
 	cv::Sobel(greyImage, sobelXImage, CV_16S, 1, 0, 3);
 	cv::Sobel(greyImage, sobelYImage, CV_16S, 0, 1, 3);
 
-	_values = new uint16_t[_numBins * _cellsPerSide * _cellsPerSide];
+	_values = new uint16_t[HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS];
 
-	uint32_t width = _cellSize * _cellsPerSide;
-	for (uint32_t sqy = 0; sqy < numCellsPerSide; sqy++)
+	uint32_t width = HOG_CELL_SIZE * HOG_NUM_CELLS;
+	for (uint32_t sqy = 0; sqy < HOG_NUM_CELLS; sqy++)
 	{
-		for (uint32_t sqx = 0; sqx < numCellsPerSide; sqx++)
+		for (uint32_t sqx = 0; sqx < HOG_NUM_CELLS; sqx++)
 		{
 			float histogram[8];
-			for (uint32_t x = 0; x < _numBins; x++)
+			for (uint32_t x = 0; x < HOG_NUM_BINS; x++)
 			{
 				histogram[x] = 0.0f;
 			}
-			for (uint32_t y = 0; y < _numBins; y++)
+			for (uint32_t y = 0; y < HOG_NUM_BINS; y++)
 			{
-				for (uint32_t x = 0; x < _numBins; x++)
+				for (uint32_t x = 0; x < HOG_NUM_BINS; x++)
 				{
-					uint32_t px = sqx * _numBins + x;
-					uint32_t py = sqy * _numBins + y;
+					uint32_t px = sqx * HOG_NUM_BINS + x;
+					uint32_t py = sqy * HOG_NUM_BINS + y;
 
 					float angle = atan2f((float) reinterpret_cast<int16_t*>(sobelYImage.data)[py * width + px], (float) reinterpret_cast<int16_t*>(sobelXImage.data)[py * width + px]);
 
@@ -106,16 +107,38 @@ CHog::CHog(uint32_t cellSize, uint32_t numCellsPerSide, cv::Mat image, uint32_t 
 
 			//normalise histograms
 			float sum = 0.0f;
-			for (uint32_t z = 0; z < _numBins; z++)
+			for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 			{
 				sum += histogram[z];
 			}
-			for (uint32_t z = 0; z < _numBins; z++)
+			for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 			{
-				_values[(sqy * _cellsPerSide + sqx) * _numBins + z] = (histogram[z] / sum) * SCALING_VALUE;
+				_values[(sqy * HOG_NUM_CELLS + sqx) * HOG_NUM_BINS + z] = (histogram[z] / sum) * SCALING_VALUE;
 			}
 		}
 	}
+}
+
+CHog::CHog(const CHog& other)
+{
+	_createdAt = other._createdAt;
+	_lastBestMatch = other._lastBestMatch;
+	_numHits = other._numHits;
+
+	_values = new uint16_t[HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS];
+
+	memcpy(_values, other._values, HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS * sizeof(*_values));
+}
+
+CHog& CHog::operator=(const CHog& other)
+{
+	_createdAt = other._createdAt;
+	_lastBestMatch = other._lastBestMatch;
+	_numHits = other._numHits;
+
+	memcpy(_values, other._values, HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS * sizeof(*_values));
+
+	return *this;
 }
 
 CHog::~CHog()
@@ -123,21 +146,7 @@ CHog::~CHog()
 	delete[] _values;
 }
 
-CHog& CHog::operator=(const CHog& other)
-{
-	if (other._cellSize == _cellSize && other._cellsPerSide == _cellsPerSide)
-	{
-		memcpy(_values, other._values, _numBins * _cellsPerSide * _cellsPerSide);
-	}
-	else
-	{
-		printf("Both CHogs must have the same dimensions");
-		throw 1;
-	}
-	return *this;
-}
-
-float CHog::Correlate(CHog* a, CHog* b, CModel* model)
+float CHog::Correlate(CHog& a, CHog& b, CModel* model)
 {
 	float score = 0;
 
@@ -147,19 +156,19 @@ float CHog::Correlate(CHog* a, CHog* b, CModel* model)
 	for (uint32_t level = 0; level < numLevels; level++)
 	{
 		uint32_t edgeCellsThisLevel = 1 << level;
-		uint32_t edgeCellsToMerge = (a->_cellsPerSide / edgeCellsThisLevel);
+		uint32_t edgeCellsToMerge = (HOG_NUM_CELLS / edgeCellsThisLevel);
 		for (uint32_t y = 0; y < edgeCellsThisLevel; y++)
 		{
 			for (uint32_t x = 0; x < edgeCellsThisLevel; x++)
 			{
 				if (!model->isHandledAtHigherLevel(level, x, y) && model->isHandledAtThisLevel(level, x, y))
 				{
-					//merge (_cellsPerSide / edgeCellsThisLevel) into one hog and correlate it
+					//merge (HOG_NUM_CELLS / edgeCellsThisLevel) into one hog and correlate it
 
 					numHistograms++;
 
-					float histogramA[_numBins], histogramB[_numBins];
-					for (uint32_t z = 0; z < _numBins; z++)
+					float histogramA[HOG_NUM_BINS], histogramB[HOG_NUM_BINS];
+					for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 					{
 						histogramA[z] = histogramB[z] = 0.0f;
 					}
@@ -168,16 +177,17 @@ float CHog::Correlate(CHog* a, CHog* b, CModel* model)
 					{
 						for (uint32_t x2 = 0; x2 < edgeCellsToMerge; x2++)
 						{
-							for (uint32_t z = 0; z < _numBins; z++)
+							uint32_t index = ((y * edgeCellsToMerge + y2) * HOG_NUM_CELLS) + ((x * edgeCellsToMerge + x2)) * HOG_NUM_BINS;
+
+							for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 							{
-								uint32_t index = ((y * edgeCellsToMerge + y2) * a->_cellsPerSide) + ((x * edgeCellsToMerge + x2)) * _numBins;
-								histogramA[z] += (float)a->_values[index + z];
-								histogramB[z] += (float)b->_values[index + z];
+								histogramA[z] += (float)(a._values[index + z]);
+								histogramB[z] += (float)(b._values[index + z]);
 							}
 						}
 					}
 
-					for (uint32_t z = 0; z < _numBins; z++)
+					for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 					{
 						//printf("HistogramA[%u] = %f, HistogramB[%u] = %f\n",  z, histogramA[z], z, histogramB[z]);
 						score += ((float) histogramA[z] / SCALING_VALUE * (float) histogramB[z] / SCALING_VALUE) / (float)( edgeCellsToMerge * edgeCellsToMerge * edgeCellsToMerge * edgeCellsToMerge);
@@ -193,13 +203,13 @@ float CHog::Correlate(CHog* a, CHog* b, CModel* model)
 uint32_t CHog::write(FILE* fh)
 {
 	uint32_t bytesWritten = 0;
-	bytesWritten += fwrite(&_magic, 1, sizeof(_magic), fh);
+	bytesWritten += fwrite(&MAGIC, 1, sizeof(MAGIC), fh);
 	bytesWritten += fwrite(&_createdAt, 1, sizeof(_createdAt), fh);
 	bytesWritten += fwrite(&_lastBestMatch, 1, sizeof(_lastBestMatch), fh);
 	bytesWritten += fwrite(&_numHits, 1, sizeof(_numHits), fh);
 	uint32_t valueBytesWritten = 0;
 	uint32_t bob = 0;
-	while((bob = fwrite(_values + valueBytesWritten, 1, sizeof(_values[0]) * (uint32_t)_numBins * _cellsPerSide * _cellsPerSide - valueBytesWritten, fh)))
+	while((bob = fwrite(_values + valueBytesWritten, 1, sizeof(_values[0]) * (uint32_t)HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS - valueBytesWritten, fh)))
 	{
 		valueBytesWritten += bob;
 	}
@@ -208,9 +218,9 @@ uint32_t CHog::write(FILE* fh)
 	return bytesWritten;
 }
 
-uint32_t CHog::getSizeBytes()
+uint32_t CHog::GetSizeBytes()
 {
-	return sizeof(_magic) + sizeof(_createdAt) + sizeof(_lastBestMatch) + sizeof(_numHits) + (sizeof(_values[0]) * (uint32_t)_numBins * _cellsPerSide * _cellsPerSide);
+	return sizeof(MAGIC) + sizeof(_createdAt) + sizeof(_lastBestMatch) + sizeof(_numHits) + (sizeof(*_values) * HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS);
 }
 
 void CHog::setMostRecentMatch(uint32_t programCounter)
@@ -238,13 +248,13 @@ uint32_t CHog::incrementHits()
 	return ++_numHits;
 }
 
-bool CHog::CompareCreated(CHog* left, CHog* right)
+bool CHog::CompareCreated(const CHog& left, const CHog& right)
 {
-	return left->getCreatedAt() <= right->getCreatedAt();
+	return left._createdAt <= right._createdAt;
 }
 
 const uint16_t* CHog::getHistogram(uint32_t x, uint32_t y) const
 {
-	return _values + ((y * _cellsPerSide + x) * _numBins);
+	return _values + ((y * HOG_NUM_CELLS + x) * HOG_NUM_BINS);
 }
 

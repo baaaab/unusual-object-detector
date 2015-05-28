@@ -5,7 +5,6 @@
 #include <vector>
 #include <cstdint>
 #include <mutex>
-#include <vector>
 
 class CImageStore;
 class CSettingsRegistry;
@@ -17,6 +16,7 @@ class IImageSource;
 class CScoreDistribution;
 class CThread;
 class CRepresentationFunctionBuilder;
+class CHogStore;
 
 class CUnusualObjectDetector
 {
@@ -41,10 +41,10 @@ public:
 
 	struct scoreModelTask_t
 	{
-		std::vector<CHog*>::iterator cBegin;
-		std::vector<CHog*>::iterator cEnd;
-		std::vector<CHog*>::iterator xBegin;
-		std::vector<CHog*>::iterator xEnd;
+		uint32_t cBegin;
+		uint32_t cEnd;
+		uint32_t xBegin;
+		uint32_t xEnd;
 
 		float score;
 	};
@@ -90,7 +90,7 @@ private:
 	CSettingsRegistry* _registry;
 	CImageStore* _imageStore;
 	ILiveResultManager* _resultManager;
-	std::vector<CHog*> _hogs;
+	CHogStore* _hogStore;
 	CModel* _model;
 	IImageSource* _imageSource;
 	CScoreDistribution* _scoreDistrubution;
@@ -99,7 +99,6 @@ private:
 	uint32_t _programCounter;
 	uint32_t _imageCount;
 	std::string _imageDir;
-	std::string _hogStoreFilename;
 	CHog* _newHog;
 
 	CThread* _mainThread;
