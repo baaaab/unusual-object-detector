@@ -7,6 +7,7 @@ CCameraImageSource::CCameraImageSource()
 {
 	_camera = CCamera::StartCamera(WIDTH, HEIGHT,30,1,true);
 
+
 	/*_camera->setAWB(raspicam::RASPICAM_AWB_SUNLIGHT);
 	_camera->setEncoding(raspicam::RASPICAM_ENCODING_RGB);
 	_camera->setExposure(raspicam::RASPICAM_EXPOSURE_AUTO);
@@ -37,7 +38,7 @@ cv::Mat CCameraImageSource::getImage()
 
 	cv::Mat img(HEIGHT, WIDTH, CV_8UC3);
 
-	cv::cvtColor(tmp, img, CV_RGBA2BGR);
+	cv::cvtColor(tmp, img, CV_RGBA2RGB);
 
 	delete[] rgba_data;
 

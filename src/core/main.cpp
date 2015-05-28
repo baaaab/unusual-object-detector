@@ -145,9 +145,10 @@ int main(int argc, char* argv[])
 		registry.setUInt32("core", "numThreads", numThreads);
 
 		//create dirs/files
-		std::string modelDir = imageDir.append("/model");
-
+		std::string modelDir = std::string(imageDir).append("/model");
 		mkdir(modelDir.c_str(), 0775);
+		std::string unusualDir = std::string(imageDir).append("/unusual");
+		mkdir(unusualDir.c_str(), 0775);
 
 		std::string hogStoreFilename = modelDir + std::string("/hogs.dat");
 		FILE* fh = fopen(hogStoreFilename.c_str(), "w");
@@ -155,7 +156,6 @@ int main(int argc, char* argv[])
 		for (uint32_t i = 0; i < imageCount; i++)
 		{
 			emptyHog.write(fh);
-			printf("Initialising hog %u\n", i);
 		}
 
 		fclose(fh);

@@ -3,9 +3,9 @@
 #include "../core/CImageStore.h"
 #include "CDisplay.h"
 
-ILiveResultManager* ILiveResultManager::GetResultManager(CImageStore* imageStore, CScoreDistribution* scoresDistribution)
+ILiveResultManager* ILiveResultManager::GetResultManager(CImageStore* imageStore, CScoreDistribution* scoresDistribution, CModel* model)
 {
-	return new CDisplay(imageStore, scoresDistribution);
+	return new CDisplay(imageStore, scoresDistribution, model);
 }
 
 

@@ -8,7 +8,7 @@
 class CScoreDistribution
 {
 public:
-	CScoreDistribution(const char* scoreFilename, uint32_t numScores);
+	CScoreDistribution(const char* scoreFilename, uint32_t numScores, uint32_t programCounter);
 	virtual ~CScoreDistribution();
 
 	bool isScoreLow(float score);

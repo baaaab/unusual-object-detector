@@ -2,7 +2,7 @@
 #define CHOG_H_
 
 #include <inttypes.h>
-#include <cstdio>
+#include <stdio.h>
 #include <opencv2/core/core.hpp>
 
 class CModel;
@@ -11,8 +11,8 @@ class CHog
 {
 public:
 	CHog(uint32_t cellSize, uint32_t numCellsPerSide, FILE* fh);
-	CHog(uint32_t cellSize, uint32_t numCellsPerSide, cv::Mat sobelX, cv::Mat sobelY, uint32_t programCounter);
-	~CHog();
+	CHog(uint32_t cellSize, uint32_t numCellsPerSide, cv::Mat image, uint32_t programCounter);
+	virtual ~CHog();
 
 	CHog& operator=(const CHog &);
 
@@ -22,11 +22,16 @@ public:
 	uint32_t getSizeBytes();
 
 	void setMostRecentMatch(uint32_t programCounter);
-	void setActive(bool isActive);
 
 	uint32_t getCreatedAt();
 	uint32_t getLastBestMatch();
-	bool isActive();
+
+	uint32_t getNumHits();
+	uint32_t incrementHits();
+
+	static bool CompareCreated(CHog* left, CHog* right);
+
+	const uint16_t* getHistogram(uint32_t x, uint32_t y) const;
 
 private:
 	uint32_t _cellSize;
@@ -36,7 +41,7 @@ private:
 
 	uint32_t _createdAt;
 	uint32_t _lastBestMatch;
-	bool _active;
+	uint32_t _numHits = 0;
 
 	static const uint32_t _magic;
 

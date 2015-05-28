@@ -6,6 +6,7 @@
 
 class CImageStore;
 class CScoreDistribution;
+class CModel;
 
 class ILiveResultManager
 {
@@ -13,7 +14,7 @@ public:
 	ILiveResultManager(){};
 	virtual ~ILiveResultManager(){};
 
-	static ILiveResultManager* GetResultManager(CImageStore* imageStore, CScoreDistribution* scoresDistribution);
+	static ILiveResultManager* GetResultManager(CImageStore* imageStore, CScoreDistribution* scoresDistribution, CModel* model);
 
 	virtual void setSourceImage(uint32_t imageId, cv::Mat sourceImage) = 0;
 	virtual void setMatchImage(uint32_t imageId, float score, bool isUnusual) = 0;

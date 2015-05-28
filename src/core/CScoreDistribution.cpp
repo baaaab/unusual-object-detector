@@ -4,11 +4,11 @@
 #include <stdio.h>
 #include <algorithm>
 
-const float CScoreDistribution::PERCENTILE = 10.0f;
+const float CScoreDistribution::PERCENTILE = 5.0f;
 
-CScoreDistribution::CScoreDistribution(const char* scoreFilename, uint32_t numScores) :
+CScoreDistribution::CScoreDistribution(const char* scoreFilename, uint32_t numScores, uint32_t programCounter) :
 	_fh( NULL ),
-	_index( 0 )
+	_index( programCounter % numScores )
 {
 	_scores.resize(numScores);
 	_fh = fopen(scoreFilename, "r+b");
@@ -25,9 +25,6 @@ CScoreDistribution::CScoreDistribution(const char* scoreFilename, uint32_t numSc
 		printf("%s::%s Scores file corrupted (%u / %u)\n", __FILE__, __FUNCTION__, numRead, numScores);
 		throw 1;
 	}
-
-	//move any zeroes to the beginning to be overwritten
-	std::sort(_scores.begin(), _scores.end());
 }
 
 CScoreDistribution::~CScoreDistribution()

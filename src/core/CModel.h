@@ -15,7 +15,11 @@ public:
 	uint32_t getNumLevels();
 	uint32_t getNumCellsPerSide();
 
-	bool handleAtThisLevel(uint32_t level, uint32_t x, uint32_t y);
+	bool isHandledAtHigherLevel(uint32_t level, uint32_t x, uint32_t y);
+	bool isHandledAtThisLevel(uint32_t level, uint32_t x, uint32_t y);
+
+	void resetModel();
+	void setHandleAtThisLevel(uint32_t level, uint32_t x, uint32_t y, bool value);
 
 	void saveToRegistry();
 

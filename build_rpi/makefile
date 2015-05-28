@@ -30,7 +30,7 @@ CFLAGS+= -I/opt/vc/include/interface/vmcs_host/linux/
 PCHFLAGS := $(addprefix , $(CFLAGS))
 
 LDFLAGS+= -fwhole-program
-LDFLAGS+= $(shell curl-config --libs) -L/opt/vc/lib -lpthread -lc -lm -lX11 -lSDL `pkg-config --libs opencv` -lmmal_core -lmmal_util -lmmal_vc_client -lvcos -lbcm_host -lboost_thread-mt
+LDFLAGS+= -L/opt/vc/lib -lc -lm -lX11 -lSDL `pkg-config --libs opencv` -lmmal_core -lmmal_util -lmmal_vc_client -lvcos -lbcm_host -lboost_thread -lboost_system
 
 all: $(CORE_PCH) $(TARGET)
 
