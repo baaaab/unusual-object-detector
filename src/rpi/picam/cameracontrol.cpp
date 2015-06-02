@@ -110,7 +110,7 @@ void raspicamcontrol_set_defaults(RASPICAM_CAMERA_PARAMETERS *params)
    params->colourEffects.u = 128;
    params->colourEffects.v = 128;
    params->rotation = 0;
-   params->hflip = params->vflip = 0;
+   params->hflip = params->vflip = 1;
    params->roi.x = params->roi.y = 0.0;
    params->roi.w = params->roi.h = 1.0;
    params->shutter_speed = 0;          // 0 = auto
