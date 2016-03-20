@@ -4,14 +4,14 @@
 #include <ILiveResultManager.h>
 
 #include <SDL/SDL.h>
-#include <mutex>
 #include <opencv2/opencv.hpp>
+#include <thread>
+#include <mutex>
 
 class CModel;
 class CImageStore;
 class IJpegHandler;
 class CScoreDistribution;
-class CThread;
 
 class CDisplay: public ILiveResultManager
 {
@@ -33,7 +33,6 @@ private:
 		DRAW_SOBEL
 	};
 
-	static void DisplayThread(void* arg);
 	void displayThread();
 
 	void blit(cv::Mat image, int x, int y);
@@ -46,7 +45,7 @@ private:
 
 	void drawScoreDistribution();
 
-	void drawHeatMap();
+	//void drawHeatMap();
 	void drawHog(int level, int sqx, int sqy, const float* hog);
 
 	bool _shutdownRequested;
@@ -71,7 +70,7 @@ private:
 	bool _firstImageReceived;
 	bool _firstMatchReceived;
 
-	CThread* _thread;
+	std::thread _thread;
 	std::recursive_mutex _mutex;
 
 	uint8_t _loadingCounter;

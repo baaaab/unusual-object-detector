@@ -9,7 +9,6 @@
 
 #include "../utils/CSettingsRegistry.h"
 #include "../utils/CTimer.h"
-#include "../utils/CThread.h"
 
 #include "CImageStore.h"
 #include "CHog.h"
@@ -45,9 +44,9 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 
 		_programCounter(0),
 		_imageCount(0),
+		_keepImages( false ),
 		_newHog( NULL ),
 
-		_mainThread(NULL),
 		_shutdownRequested(false)
 {
 
@@ -57,6 +56,7 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 	_programCounter = _registry->getUInt32(_coreRegistryGroup.c_str(), "programCounter");
 	_imageCount = _registry->getUInt32(_coreRegistryGroup.c_str(), "imageCount");
 	_imageDir = _registry->getString(_coreRegistryGroup.c_str(), "imageDir");
+	_keepImages = _registry->getUInt32(_coreRegistryGroup.c_str(), "keepImages");
 
 	std::string modelDir = std::string(_imageDir).append("/model");
 	std::string scoresDistributionFilename = modelDir + std::string("/scores.dat");
@@ -68,13 +68,14 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 
 	std::string hogStoreFilename = modelDir + std::string("/hogs.dat");
 	_hogStore = new CHogStore(hogStoreFilename, _imageCount);
+	_hogStore->modelHogs(_model);
 
 	_imageSource = IImageSource::GetSource(_registry);
 	_representationFunctionBuilder = new CRepresentationFunctionBuilder(_model, _hogStore);
 
 	initialiseWorkerThreads();
 
-	_mainThread = new CThread(MainThread, this);
+	_mainThread = std::thread(&CUnusualObjectDetector::mainThreadFunction, this);
 }
 
 CUnusualObjectDetector::~CUnusualObjectDetector()
@@ -86,12 +87,10 @@ CUnusualObjectDetector::~CUnusualObjectDetector()
 		(*itr)->shutdownRequested = true;
 	}
 
-	delete _mainThread;
+	_mainThread.join();
 
 	for (auto itr = _tasks.begin(); itr != _tasks.end(); ++itr)
 	{
-		delete (*itr)->thread;
-		(*itr)->thread = NULL;
 		delete *itr;
 	}
 
@@ -106,7 +105,6 @@ CUnusualObjectDetector::~CUnusualObjectDetector()
 
 CUnusualObjectDetector::task_t::task_t() :
 	self( NULL ),
-	thread( NULL ),
 	job( JOB_CORRELATE_HOGS ),
 	done( true ),
 	shutdownRequested( false )
@@ -116,7 +114,7 @@ CUnusualObjectDetector::task_t::task_t() :
 
 CUnusualObjectDetector::task_t::~task_t()
 {
-	delete thread;
+	thread.join();
 }
 
 void CUnusualObjectDetector::initialiseWorkerThreads()
@@ -161,13 +159,8 @@ void CUnusualObjectDetector::initialiseWorkerThreads()
 
 		_tasks.push_back(task);
 
-		_tasks[i]->thread = new CThread(WorkerThread, task);
+		_tasks[i]->thread = std::thread(&CUnusualObjectDetector::workerThreadFunction, this, task);
 	}
-}
-
-void CUnusualObjectDetector::MainThread(void* arg)
-{
-	static_cast<CUnusualObjectDetector*>(arg)->mainThreadFunction();
 }
 
 void CUnusualObjectDetector::mainThreadFunction()
@@ -182,7 +175,7 @@ void CUnusualObjectDetector::mainThreadFunction()
 
 	while (!_shutdownRequested)
 	{
-		if(_programCounter == _imageCount || (_programCounter != 0 && _programCounter % _imageCount == 0))
+		if(_programCounter == _imageCount || (_programCounter != 0 && _programCounter % (_imageCount * 10) == 0))
 		{
 			buildRepresentationFunction();
 			if(_shutdownRequested)
@@ -206,6 +199,7 @@ void CUnusualObjectDetector::mainThreadFunction()
 		_imageStore->saveImage(resizedImage, _programCounter);
 
 		_newHog = new CHog(resizedImage, _programCounter);
+		_newHog->computeRCH(_model);
 
 		dispatchWorkerThreads(JOB_CORRELATE_HOGS);
 		waitForWorkerThreadCompletion();
@@ -277,6 +271,13 @@ void CUnusualObjectDetector::mainThreadFunction()
 
 			printf(" replacing: %u, relevance = %f\n", leastRelevantHogIndex, lowestRelevance);
 
+			if(!_keepImages)
+			{
+				uint32_t oldHogId = _hogStore->at(leastRelevantHogIndex).getCreatedAt();
+				std::string oldImage = _imageStore->fetchImagePath(oldHogId);
+				unlink(oldImage.c_str());
+			}
+
 			_hogStore->at(leastRelevantHogIndex) = *_newHog;
 			_hogStore->write(leastRelevantHogIndex);
 
@@ -292,12 +293,6 @@ void CUnusualObjectDetector::mainThreadFunction()
 		_registry->setUInt32(_coreRegistryGroup.c_str(), "programCounter", _programCounter);
 	}
 
-}
-
-void CUnusualObjectDetector::WorkerThread(void* arg)
-{
-	task_t* task = static_cast<task_t*>(arg);
-	task->self->workerThreadFunction(task);
 }
 
 void CUnusualObjectDetector::workerThreadFunction(task_t* task)
@@ -406,6 +401,9 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 		}
 	}
 
+	CTimer bob;
+	_hogStore->modelHogs(_model);
+
 	dispatchWorkerThreads(JOB_SCORE_MODEL);
 	waitForWorkerThreadCompletion();
 
@@ -429,8 +427,12 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 					_model->setHandleAtThisLevel(level, x, y, true);
 
 					float splitScore = 0.0f;
+					bob.reset();
+					_hogStore->modelHogs(_model);
+					printf("Modelling hogs: %f seconds\n", bob.reset() / 1000000.0f);
 					dispatchWorkerThreads(JOB_SCORE_MODEL);
 					waitForWorkerThreadCompletion();
+					printf("Worker threads: %f seconds\n", bob.reset() / 1000000.0f);
 
 					//read scores from worker threads
 					for (auto itr = _tasks.begin(); itr != _tasks.end(); ++itr)
@@ -454,5 +456,9 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 		}
 	}
 
-	_model->saveToRegistry();
+	if(!_shutdownRequested)
+	{
+		_model->saveToRegistry();
+		_hogStore->modelHogs(_model);
+	}
 }

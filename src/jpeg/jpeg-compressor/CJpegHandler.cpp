@@ -37,7 +37,7 @@ std::vector<uint8_t> CJpegHandler::compress(const cv::Mat image)
 	uint8_t* compressedImage = new uint8_t[bufSize];
 
 	jpge::params options;
-	options.m_quality = 75;
+	options.m_quality = 65;
 	options.m_subsampling = jpge::H2V2;
 	options.m_two_pass_flag = true;
 

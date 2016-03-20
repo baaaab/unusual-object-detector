@@ -36,3 +36,11 @@ void CHogStore::write(std::vector<CHog>::iterator itr)
 	write(itr - begin());
 }
 
+void CHogStore::modelHogs(CModel* model)
+{
+	for(auto itr = begin(); itr != end(); ++itr)
+	{
+		itr->computeRCH(model);
+	}
+}
+

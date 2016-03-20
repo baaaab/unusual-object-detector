@@ -16,6 +16,8 @@ public:
 	void write(uint32_t index);
 	void write(std::vector<CHog>::iterator itr);
 
+	void modelHogs(CModel* model);
+
 private:
 	FILE* _fh;
 

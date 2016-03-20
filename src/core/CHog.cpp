@@ -10,7 +10,8 @@
 #include "../../include/settings.h"
 #include "CModel.h"
 
-namespace{
+namespace
+{
 //for float -> uint16_t conversions
 const float SCALING_VALUE = 65535.0f;
 const uint32_t MAGIC = 0x2955a6a5;
@@ -26,10 +27,10 @@ CHog::CHog() :
 }
 
 CHog::CHog(FILE* fh) :
-		_values( NULL ),
-		_createdAt( 0 ),
-		_lastBestMatch( 0 ),
-		_numHits( 0 )
+		_values( NULL),
+		_createdAt(0),
+		_lastBestMatch(0),
+		_numHits(0)
 {
 	_values = new uint16_t[HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS];
 
@@ -40,29 +41,19 @@ CHog::CHog(FILE* fh) :
 	}
 	else
 	{
-		uint32_t tmp = 0xdeadbeef;
-
-		fread(&tmp, 1, sizeof(tmp), fh);
-
-		if (tmp != MAGIC)
+		if(!read(fh))
 		{
-			printf("%s::%s Error reading HOGs from file: data is corrupted (%08x != %08x)\n", __FILE__, __FUNCTION__, tmp, MAGIC);
+			printf("%s::%s Error reading hog data file\n", __FILE__, __FUNCTION__);
 			throw 1;
-		}
-
-		fread(&_createdAt, 1, sizeof(_createdAt), fh);
-		fread(&_lastBestMatch, 1, sizeof(_lastBestMatch), fh);
-		fread(&_numHits, 1, sizeof(_numHits), fh);
-
-		fread(_values, sizeof(*_values), HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS, fh);
+		};
 	}
 }
 
 CHog::CHog(cv::Mat image, uint32_t programCounter) :
-		_values( NULL ),
-		_createdAt( programCounter ),
-		_lastBestMatch( programCounter ),
-		_numHits( 0 )
+		_values( NULL),
+		_createdAt(programCounter),
+		_lastBestMatch(programCounter),
+		_numHits(0)
 {
 	cv::Mat greyImage;
 	cv::Mat smoothedImage;
@@ -124,6 +115,7 @@ CHog::CHog(const CHog& other)
 	_createdAt = other._createdAt;
 	_lastBestMatch = other._lastBestMatch;
 	_numHits = other._numHits;
+	_rch = other._rch;
 
 	_values = new uint16_t[HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS];
 
@@ -135,6 +127,7 @@ CHog& CHog::operator=(const CHog& other)
 	_createdAt = other._createdAt;
 	_lastBestMatch = other._lastBestMatch;
 	_numHits = other._numHits;
+	_rch = other._rch;
 
 	memcpy(_values, other._values, HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS * sizeof(*_values));
 
@@ -146,12 +139,12 @@ CHog::~CHog()
 	delete[] _values;
 }
 
-float CHog::Correlate(CHog& a, CHog& b, CModel* model)
+void CHog::computeRCH(CModel* model)
 {
-	float score = 0;
+	//clear old rch
+	_rch = std::vector<uint16_t>();
 
 	uint32_t numLevels = model->getNumLevels();
-	uint32_t numHistograms = 0;
 
 	for (uint32_t level = 0; level < numLevels; level++)
 	{
@@ -165,12 +158,10 @@ float CHog::Correlate(CHog& a, CHog& b, CModel* model)
 				{
 					//merge (HOG_NUM_CELLS / edgeCellsThisLevel) into one hog and correlate it
 
-					numHistograms++;
-
-					float histogramA[HOG_NUM_BINS], histogramB[HOG_NUM_BINS];
+					float histogram[HOG_NUM_BINS];
 					for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 					{
-						histogramA[z] = histogramB[z] = 0.0f;
+						histogram[z] = 0.0f;
 					}
 
 					for (uint32_t y2 = 0; y2 < edgeCellsToMerge; y2++)
@@ -181,23 +172,55 @@ float CHog::Correlate(CHog& a, CHog& b, CModel* model)
 
 							for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 							{
-								histogramA[z] += (float)(a._values[index + z]);
-								histogramB[z] += (float)(b._values[index + z]);
+								histogram[z] += (float) (_values[index + z]);
 							}
 						}
 					}
 
 					for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 					{
-						//printf("HistogramA[%u] = %f, HistogramB[%u] = %f\n",  z, histogramA[z], z, histogramB[z]);
-						score += ((float) histogramA[z] / SCALING_VALUE * (float) histogramB[z] / SCALING_VALUE) / (float)( edgeCellsToMerge * edgeCellsToMerge * edgeCellsToMerge * edgeCellsToMerge);
+						_rch.push_back( histogram[z] / (edgeCellsToMerge * edgeCellsToMerge));
 					}
 				}
 			}
 		}
-
 	}
-	return score / numHistograms;
+}
+
+float CHog::Correlate(CHog& a, CHog& b, CModel* model)
+{
+	if (a._rch.size() == 0 || b._rch.size() == 0 || a._rch.size() != b._rch.size())
+	{
+		printf("%s::%s invalid RCH lengths: %u vs %u\n", __FILE__, __FUNCTION__, a._rch.size(), b._rch.size());
+		throw 1;
+	}
+	float score = 0;
+
+	for (uint32_t h = 0; h < a._rch.size(); h++)
+	{
+		score += (float)(a._rch[h]) * (float)(b._rch[h]);
+	}
+
+	return score / (a._rch.size() * SCALING_VALUE * SCALING_VALUE);
+}
+
+bool CHog::read(FILE* fh)
+{
+	uint32_t tmp = 0xdeadbeef;
+
+	fread(&tmp, 1, sizeof(tmp), fh);
+
+	if (tmp != MAGIC)
+	{
+		printf("%s::%s Error reading HOGs from file: data is corrupted (%08x != %08x)\n", __FILE__, __FUNCTION__, tmp, MAGIC);
+		throw 1;
+	}
+
+	fread(&_createdAt, 1, sizeof(_createdAt), fh);
+	fread(&_lastBestMatch, 1, sizeof(_lastBestMatch), fh);
+	fread(&_numHits, 1, sizeof(_numHits), fh);
+
+	return fread(_values, sizeof(*_values), HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS, fh) == HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS;
 }
 
 uint32_t CHog::write(FILE* fh)
@@ -209,7 +232,7 @@ uint32_t CHog::write(FILE* fh)
 	bytesWritten += fwrite(&_numHits, 1, sizeof(_numHits), fh);
 	uint32_t valueBytesWritten = 0;
 	uint32_t bob = 0;
-	while((bob = fwrite(_values + valueBytesWritten, 1, sizeof(_values[0]) * (uint32_t)HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS - valueBytesWritten, fh)))
+	while ((bob = fwrite(_values + valueBytesWritten, 1, sizeof(_values[0]) * (uint32_t) HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS - valueBytesWritten, fh)))
 	{
 		valueBytesWritten += bob;
 	}

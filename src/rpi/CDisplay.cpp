@@ -9,7 +9,6 @@
 #include <algorithm>
 
 #include <settings.h>
-#include "../utils/CThread.h"
 #include "CAutoScreenLock.h"
 #include "../core/CModel.h"
 #include "../core/CImageStore.h"
@@ -40,7 +39,6 @@ CDisplay::CDisplay(CImageStore* imageStore, CScoreDistribution* scoresDistributi
 		_matchedImageNeedsReloading(true),
 		_firstImageReceived(false),
 		_firstMatchReceived(false),
-		_thread( NULL),
 		_loadingCounter(0),
 		_drawType(DRAW_IMAGE)
 {
@@ -61,13 +59,13 @@ CDisplay::CDisplay(CImageStore* imageStore, CScoreDistribution* scoresDistributi
 
 	_jpegHandler = CJpegHandlerFactory::GetHandler();
 
-	_thread = new CThread(DisplayThread, this);
+	_thread = std::thread(&CDisplay::displayThread, this);
 }
 
 CDisplay::~CDisplay()
 {
 	_shutdownRequested = true;
-	delete _thread;
+	_thread.join();
 	delete _jpegHandler;
 	_imageStore = NULL;
 	SDL_Quit();
@@ -89,12 +87,6 @@ void CDisplay::setMatchImage(uint32_t imageId, float score, bool isUnusual)
 	_matchedImageId = imageId;
 	_matchedImageIsUnusual = isUnusual;
 
-}
-
-void CDisplay::DisplayThread(void* arg)
-{
-	CDisplay* display = static_cast<CDisplay*>(arg);
-	display->displayThread();
 }
 
 void CDisplay::displayThread()
@@ -150,7 +142,14 @@ void CDisplay::displayThread()
 				AutoMutex am(_mutex);
 				if (_matchedImageNeedsReloading)
 				{
-					_matchedImage = _imageStore->fetchImage(_matchedImageId);
+					try
+					{
+						_matchedImage = _imageStore->fetchImage(_matchedImageId);
+					}
+					catch( ... )
+					{
+
+					}
 					_matchedImageNeedsReloading = false;
 				}
 
@@ -210,11 +209,11 @@ void CDisplay::displayThread()
 			drawModel();
 			blit(_sourceImage, 512, 0);
 		}
-		else if (_drawType == DRAW_HEAT_MAP || _drawType == DRAW_HOG)
+		/*else if (_drawType == DRAW_HEAT_MAP || _drawType == DRAW_HOG)
 		{
 			drawHeatMap();
 			blit(_sourceImage, 512, 0);
-		}
+		}*/
 		else if (_drawType == DRAW_SOBEL)
 		{
 			if (_firstImageReceived && _firstMatchReceived)
@@ -427,7 +426,7 @@ void CDisplay::drawScoreDistribution()
 	}
 }
 
-void CDisplay::drawHeatMap()
+/*void CDisplay::drawHeatMap()
 {
 	uint32_t black = setColour(0, 0, 0);
 	drawRectangle(0, 0, IMAGE_WIDTH - 1, IMAGE_HEIGHT - 1, black);
@@ -502,7 +501,7 @@ void CDisplay::drawHeatMap()
 
 	}
 
-}
+}*/
 
 void CDisplay::drawHog(int level, int sqx, int sqy, const float* hog)
 {

@@ -18,7 +18,8 @@ CORE_PCH=$(notdir $(CORE_PCH_FILENAME)).gch
 
 CC=g++
 LD=g++
-CFLAGS=-MMD -std=c++11 -Wall -ggdb -O3 -ffast-math -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4
+#OPTIMISATION_FLAGS=-O3 -ffast-math -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -flto
+CFLAGS=-MMD -std=c++11 -Wall -ggdb $(OPTIMISATION_FLAGS) -pthread
 
 CFLAGS+=-I. -I../include -pthread `pkg-config --cflags opencv`
 CFLAGS+= -I/usr/local/include/raspicam
@@ -29,8 +30,8 @@ CFLAGS+= -I/opt/vc/include/interface/vmcs_host/linux/
 
 PCHFLAGS := $(addprefix , $(CFLAGS))
 
-LDFLAGS+= -fwhole-program
-LDFLAGS+= -L/opt/vc/lib -lc -lm -lX11 -lSDL `pkg-config --libs opencv` -lmmal_core -lmmal_util -lmmal_vc_client -lvcos -lbcm_host -lboost_thread -lboost_system
+LDFLAGS+= -fwhole-program  $(OPTIMISATION_FLAGS) -pthread
+LDFLAGS+= -lcurl -L/opt/vc/lib -lc -lm -lX11 -lSDL `pkg-config --libs opencv` -lmmal_core -lmmal_util -lmmal_vc_client -lvcos -lbcm_host -lboost_system
 
 all: $(CORE_PCH) $(TARGET)
 

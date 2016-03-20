@@ -4,6 +4,7 @@
 #include <opencv2/core/core.hpp>
 #include <cstdint>
 #include <cstdio>
+#include <vector>
 
 class CModel;
 
@@ -18,6 +19,8 @@ public:
 	CHog(const CHog& other);
 	virtual ~CHog();
 
+	void computeRCH(CModel* model);
+
 	static float Correlate(CHog& a, CHog& b, CModel* model);
 	void setMostRecentMatch(uint32_t programCounter);
 
@@ -31,6 +34,7 @@ public:
 
 	const uint16_t* getHistogram(uint32_t x, uint32_t y) const;
 
+	bool read(FILE* fh);
 	uint32_t write(FILE* fh);
 
 private:
@@ -39,6 +43,7 @@ private:
 	void replace(CHog& other);
 	static uint32_t GetSizeBytes();
 
+	std::vector<uint16_t> _rch;
 	uint16_t* _values;
 	uint32_t _createdAt;
 	uint32_t _lastBestMatch;

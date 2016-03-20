@@ -23,6 +23,7 @@ void printUsage(const char* program)
 	printf("\t\t -n number_of_comparison_images [> 100]\n");
 	printf("\t\t -i image_folder\n");
 	printf("\t\t [-t num_threads = 1]\n");
+	printf("\t\t [-k (keep images)]\n");
 }
 
 int main(int argc, char* argv[])
@@ -45,6 +46,7 @@ int main(int argc, char* argv[])
 			registry.getUInt32("core", "imageCount");
 			registry.getString("core", "imageDir");
 			registry.getString("core", "numThreads");
+			registry.getUInt32("core", "keepImages");
 		}
 		catch (...)
 		{
@@ -81,9 +83,10 @@ int main(int argc, char* argv[])
 		uint32_t imageCount = 0;
 		std::string imageDir;
 		uint32_t numThreads = 1;
+		bool keepImages = false;
 
 		int c;
-		while ((c = getopt(argc-1, argv+1, "n:i:t:")) != -1)
+		while ((c = getopt(argc-1, argv+1, "n:i:t:k")) != -1)
 		{
 			switch (c)
 			{
@@ -95,6 +98,9 @@ int main(int argc, char* argv[])
 				break;
 			case 't':
 				numThreads = strtoul(optarg, NULL, 10);
+				break;
+			case 'k':
+				keepImages = true;
 				break;
 			case '?':
 				if (optopt == 'n' || optopt == 'i' || optopt == 't')
@@ -143,6 +149,7 @@ int main(int argc, char* argv[])
 		registry.setUInt32("core", "imageCount", imageCount);
 		registry.setString("core", "imageDir", imageDir);
 		registry.setUInt32("core", "numThreads", numThreads);
+		registry.setUInt32("core", "keepImages", keepImages?1:0);
 
 		//create dirs/files
 		std::string modelDir = std::string(imageDir).append("/model");
