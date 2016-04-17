@@ -15,8 +15,6 @@ public:
 
 	CHog();
 	CHog(cv::Mat image, uint32_t programCounter);
-	CHog& operator=(const CHog& other);
-	CHog(const CHog& other);
 	virtual ~CHog();
 
 	void computeRCH(CModel* model);
@@ -26,7 +24,6 @@ public:
 
 	uint32_t getCreatedAt();
 	uint32_t getLastBestMatch();
-
 	uint32_t getNumHits();
 	uint32_t incrementHits();
 
@@ -37,6 +34,10 @@ public:
 	bool read(FILE* fh);
 	uint32_t write(FILE* fh);
 
+	//GUI functions
+	std::vector<uint16_t> getHOG();
+	std::vector<uint16_t> getRCH();
+
 private:
 	//accessible form CHogStore
 	CHog(FILE* fh);
@@ -44,7 +45,7 @@ private:
 	static uint32_t GetSizeBytes();
 
 	std::vector<uint16_t> _rch;
-	uint16_t* _values;
+	std::vector<uint16_t> _values;
 	uint32_t _createdAt;
 	uint32_t _lastBestMatch;
 	uint32_t _numHits;

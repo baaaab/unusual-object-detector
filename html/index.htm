@@ -1,0 +1,34 @@
+<html ng-app="uod">
+<head>
+	<title>Unusual Object Detector</title>
+	<script type="text/javascript" src="jslib/angular.min.js"></script>
+	<script type="text/javascript" src="js/uod.module.js"></script>
+	<script type="text/javascript" src="js/uod.controller.js"></script>
+</head>
+<body ng-controller="uodController as vm">
+<table cellspacing="0" cellpadding="0">
+	<tr>
+		<td style="background-image:url('imageProvider/{{vm.programData.sourceImageId}}.jpg')">
+			<table id="source_table" cellspacing="0" cellpadding="0" style="width:{{vm.programData.imageWidth}}px; height:{{vm.programData.imageHeight}}px;background:none;opacity:{{vm.opacity / 100}}">
+				<tr>
+					<td></td>
+				</tr>
+			</table>
+		</td>
+		<td style="background-image:url('imageProvider/{{vm.programData.matchImageId}}.jpg')">
+			<table id="match_table" cellspacing="0" cellpadding="0" style="width:{{vm.programData.imageWidth}}px; height:{{vm.programData.imageHeight}}px;background:none;opacity:{{vm.opacity / 100}}">
+			</table>
+		</td>
+		<td>
+			Display:<br />
+			<input type="radio" value="images" ng-model="vm.display" /> Images <br />
+			<input type="radio" value="hogs" ng-model="vm.display" /> HOGS <br />
+			<input type="radio" value="biggest_contributor" ng-model="vm.display" /> Biggest Contributor <br />
+			<input type="radio" value="heat" ng-model="vm.display" /> Heat <br />
+			<input type="radio" value="model" ng-model="vm.display" /> Model <br />
+			Opacity:<input type="text" ng-model="vm.opacity" />
+		</td>
+	</tr>
+</table>
+</body>
+</html>

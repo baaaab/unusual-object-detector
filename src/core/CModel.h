@@ -21,13 +21,17 @@ public:
 	void resetModel();
 	void setHandleAtThisLevel(uint32_t level, uint32_t x, uint32_t y, bool value);
 
+	std::vector<std::vector<bool>> getModel() const;
+
 	void saveToRegistry();
 
 private:
 
+	uint32_t getLevelsBaseAddress(uint32_t level);
+
 	uint32_t _numCellsPerSide;
 	uint32_t _log2NumCellsPerSide;
-	std::vector<bool>* _levels;
+	std::vector<bool> _levels;
 
 	CSettingsRegistry* _registry;
 	std::string _registryGroup;

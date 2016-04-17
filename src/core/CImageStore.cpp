@@ -18,7 +18,8 @@ CImageStore::~CImageStore()
 void CImageStore::saveImage(cv::Mat image, uint32_t programCounter)
 {
 	uint32_t imageDirNumber = programCounter / 100;
-	std::string imageSubDir = _imageDir + std::string("/") +  std::to_string(imageDirNumber) + std::string("/");
+	std::string imageSubDir = _imageDir;
+	imageSubDir.append("/images/").append(std::to_string(imageDirNumber)).append("/");
 
 	struct stat pathInfo;
 	if (stat(imageSubDir.c_str(), &pathInfo) == -1)
@@ -43,9 +44,10 @@ void CImageStore::saveImage(cv::Mat image, uint32_t programCounter)
 std::string CImageStore::fetchImagePath(uint32_t programCounter)
 {
 	uint32_t imageDirNumber = programCounter / 100;
-	std::string imageSubDir = _imageDir + std::string("/") + std::to_string(imageDirNumber) + std::string("/");
+	std::string imageSubDir = _imageDir;
+	imageSubDir.append("/images/").append(std::to_string(imageDirNumber)).append("/");
 
-	std::string filename = imageSubDir + std::to_string(programCounter) + std::string(".jpg");
+	std::string filename = imageSubDir.append(std::to_string(programCounter)).append(".jpg");
 
 	return filename;
 }

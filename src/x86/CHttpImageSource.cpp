@@ -3,10 +3,11 @@
 #include <string>
 #include <CJpegHandlerFactory.h>
 #include "../utils/CSettingsRegistry.h"
+#include <IJpegHandler.h>
 
 CHttpImageSource::CHttpImageSource(CSettingsRegistry* registry) :
-		_curl( NULL),
-		_jpegReader( NULL)
+		_jpegReader( NULL),
+		_curl( NULL)
 {
 	_url = registry->getString("web", "imageUrl");
 
@@ -21,7 +22,6 @@ CHttpImageSource::CHttpImageSource(CSettingsRegistry* registry) :
 	curl_easy_setopt(_curl, CURLOPT_WRITEDATA, static_cast<void*>(this));
 
 	_jpegReader = CJpegHandlerFactory::GetHandler();
-
 }
 
 CHttpImageSource::~CHttpImageSource()
@@ -38,7 +38,7 @@ cv::Mat CHttpImageSource::getImage()
 	curl_easy_setopt(_curl, CURLOPT_WRITEFUNCTION, WriteFunction);
 	curl_easy_setopt(_curl, CURLOPT_WRITEDATA, static_cast<void*>(this));
 
-	CURLcode res = curl_easy_perform(_curl);
+	curl_easy_perform(_curl);
 
 	return _jpegReader->decompress(&_buffer[0], _buffer.size());
 }

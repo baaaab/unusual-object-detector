@@ -39,8 +39,6 @@ std::vector<unsigned char> CTurboJpegHandler::compress(const cv::Mat image)
 
 	tjCompress2(_jpegCompressor, image.data, image.cols, 0, image.rows, TJPF_BGR, &compressedImage, &jpegSize, TJSAMP_444, 75, 0);
 
-	const char* err = tjGetErrorStr();
-
 	std::vector<unsigned char> vec = std::vector<unsigned char>(compressedImage, compressedImage + jpegSize);
 
 	tjFree(compressedImage);

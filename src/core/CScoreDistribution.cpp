@@ -53,10 +53,10 @@ void CScoreDistribution::logScore(float score)
 	_index = (_index + 1) % _scores.size();
 }
 
-void CScoreDistribution::getScoreDistribution(uint32_t* index, std::vector<float>* scores) const
+void CScoreDistribution::getScoreDistribution(uint32_t& index, std::vector<float>& scores) const
 {
-	*index = _index;
-	*scores = _scores;
+	index = _index;
+	scores = _scores;
 }
 
 void CScoreDistribution::writeToFile()

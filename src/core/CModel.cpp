@@ -5,7 +5,6 @@
 CModel::CModel(uint32_t numCellsPerSide, CSettingsRegistry* registry) :
 		_numCellsPerSide(numCellsPerSide),
 		_log2NumCellsPerSide(0),
-		_levels( NULL),
 		_registry(registry),
 		_registryGroup("model")
 {
@@ -19,14 +18,6 @@ CModel::CModel(uint32_t numCellsPerSide, CSettingsRegistry* registry) :
 		_log2NumCellsPerSide++;
 	}
 
-	// dont need storage for final level;
-	_levels = new std::vector<bool>[_log2NumCellsPerSide];
-
-	if (registry == NULL)
-	{
-		throw 1;
-	}
-
 	std::string testRegEntry("level0");
 	bool modelInitialised = true;
 
@@ -38,17 +29,20 @@ CModel::CModel(uint32_t numCellsPerSide, CSettingsRegistry* registry) :
 	{
 		modelInitialised = false;
 	}
+
+	_levels.resize(getLevelsBaseAddress(_log2NumCellsPerSide));
+
 	if (!modelInitialised)
 	{
 		for (uint32_t level = 0; level < _log2NumCellsPerSide; level++)
 		{
 			uint32_t edgeCellsThisLevel = 1 << level;
 
-			_levels[level].resize(edgeCellsThisLevel * edgeCellsThisLevel);
+			uint32_t levelsBaseAddress = getLevelsBaseAddress(level);
 
 			for (uint32_t j = 0; j < (edgeCellsThisLevel * edgeCellsThisLevel); j++)
 			{
-				_levels[level][j] = true;
+				_levels[levelsBaseAddress+j] = true;
 			}
 		}
 	}
@@ -59,18 +53,17 @@ CModel::CModel(uint32_t numCellsPerSide, CSettingsRegistry* registry) :
 			std::string registryEntry = std::string("level").append(std::to_string(level));
 			std::string saved = _registry->getString(_registryGroup.c_str(), registryEntry.c_str());
 			uint32_t edgeCellsThisLevel = 1 << level;
-
-			_levels[level].resize(edgeCellsThisLevel * edgeCellsThisLevel);
+			uint32_t levelsBaseAddress = getLevelsBaseAddress(level);
 
 			for (uint32_t j = 0; j < (edgeCellsThisLevel * edgeCellsThisLevel); j++)
 			{
 				try
 				{
-					_levels[level][j] = saved.at(j) == '1';
+					_levels[levelsBaseAddress + j] = (saved.at(j) == '1');
 				}
 				catch (...)
 				{
-					_levels[level][j] = 0;
+					_levels[levelsBaseAddress + j] = false;
 				}
 			}
 		}
@@ -79,7 +72,7 @@ CModel::CModel(uint32_t numCellsPerSide, CSettingsRegistry* registry) :
 
 CModel::~CModel()
 {
-	delete[] _levels;
+
 }
 
 uint32_t CModel::getNumLevels()
@@ -99,10 +92,11 @@ bool CModel::isHandledAtHigherLevel(uint32_t level, uint32_t x, uint32_t y)
 	for (uint32_t i = 0; i < level; i++)
 	{
 		uint32_t edgeCellsThisLevel = 1 << i;
+		uint32_t levelsBaseAddress = getLevelsBaseAddress(i);
 
-		//printf("\tL=%u, edge=%2u, index = %5u, value = %u\n", i, edgeCellsThisLevel, (y >> (level - i)) * edgeCellsThisLevel + (x >> (level - i)), _levels[i][(y >> (level - i)) * edgeCellsThisLevel + (x >> (level - i))]?1:0);
+		//printf("\tL=%u, edge=%2u, index = %5u, value = %u\n", i, edgeCellsThisLevel, (y >> (level - i)) * edgeCellsThisLevel + (x >> (level - i)), _levels[levelsBaseAddress + ((y >> (level - i)) * edgeCellsThisLevel + (x >> (level - i)))]?1:0);
 
-		if (!_levels[i][(y >> (level - i)) * edgeCellsThisLevel + (x >> (level - i))])
+		if (!_levels[levelsBaseAddress + ((y >> (level - i)) * edgeCellsThisLevel + (x >> (level - i)))])
 		{
 			//this was handled at an earlier level
 			return true;
@@ -114,11 +108,16 @@ bool CModel::isHandledAtHigherLevel(uint32_t level, uint32_t x, uint32_t y)
 
 bool  CModel::isHandledAtThisLevel(uint32_t level, uint32_t x, uint32_t y)
 {
+	if(level == _log2NumCellsPerSide)
+	{
+		return true;
+	}
 	uint32_t edgeCellsThisLevel = 1 << level;
+	uint32_t levelsBaseAddress = getLevelsBaseAddress(level);
 
-	//printf("\tL=%u, edge=%2u, index = %5u, value = %u\n", level, edgeCellsThisLevel, y * edgeCellsThisLevel + x, _levels[level][y * edgeCellsThisLevel + x]?1:0);
+	//printf("\tL=%u, edge=%2u, index = %5u, value = %u\n", level, edgeCellsThisLevel, y * edgeCellsThisLevel + x, _levels[levelsBaseAddress + (y * edgeCellsThisLevel + x)]?1:0);
 
-	return level == _log2NumCellsPerSide || _levels[level][y * edgeCellsThisLevel + x] == false;
+	return _levels[levelsBaseAddress + (y * edgeCellsThisLevel + x)] == false;
 }
 
 void CModel::resetModel()
@@ -129,10 +128,11 @@ void CModel::resetModel()
 	for (uint32_t level = 0; level < _log2NumCellsPerSide; level++)
 	{
 		uint32_t edgeCellsThisLevel = 1 << level;
+		uint32_t levelsBaseAddress = getLevelsBaseAddress(level);
 
 		for (uint32_t j = 0; j < (edgeCellsThisLevel * edgeCellsThisLevel); j++)
 		{
-			_levels[level][j] = false;
+			_levels[levelsBaseAddress + j] = false;
 		}
 	}
 }
@@ -142,7 +142,13 @@ void CModel::setHandleAtThisLevel(uint32_t level, uint32_t x, uint32_t y, bool v
 	if (level >= _log2NumCellsPerSide) return;
 
 	uint32_t edgeCellsThisLevel = 1 << level;
-	_levels[level][y * edgeCellsThisLevel + x] = value;
+	uint32_t levelsBaseAddress = getLevelsBaseAddress(level);
+	_levels[levelsBaseAddress + (y * edgeCellsThisLevel + x)] = value;
+}
+
+std::vector<std::vector<bool>> CModel::getModel() const
+{
+	return std::vector<std::vector<bool>>();
 }
 
 void CModel::saveToRegistry()
@@ -150,13 +156,14 @@ void CModel::saveToRegistry()
 	for (uint32_t level = 0; level < _log2NumCellsPerSide; level++)
 	{
 		std::string stringRepresentation;
+		uint32_t levelsBaseAddress = getLevelsBaseAddress(level);
 
 		uint32_t edgeCellsThisLevel = 1 << level;
 		for (uint32_t j = 0; j < (edgeCellsThisLevel * edgeCellsThisLevel); j++)
 		{
 			try
 			{
-				stringRepresentation.append(_levels[level][j] ? "1" : "0");
+				stringRepresentation.append(_levels[levelsBaseAddress + j] ? "1" : "0");
 			}
 			catch (...)
 			{
@@ -167,4 +174,16 @@ void CModel::saveToRegistry()
 		std::string registryEntry = std::string("level").append(std::to_string(level));
 		_registry->setString(_registryGroup.c_str(), registryEntry.c_str(), stringRepresentation);
 	}
+}
+
+uint32_t CModel::getLevelsBaseAddress(uint32_t level)
+{
+	uint32_t baseAddress = 0;
+	while(level)
+	{
+		uint32_t edgeCellsThisLevel = 1 << level;
+		baseAddress += edgeCellsThisLevel * edgeCellsThisLevel;
+		level--;
+	}
+	return baseAddress;
 }

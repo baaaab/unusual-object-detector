@@ -14,7 +14,7 @@ public:
 	bool isScoreLow(float score);
 	void logScore  (float score);
 
-	void getScoreDistribution(uint32_t* index, std::vector<float>* scores) const;
+	void getScoreDistribution(uint32_t& index, std::vector<float>& scores) const;
 
 private:
 	FILE*              _fh;

@@ -4,8 +4,9 @@
 #include <opencv2/core/core.hpp>
 #include <vector>
 #include <turbojpeg.h>
+#include <IJpegHandler.h>
 
-class CTurboJpegHandler : IJpegHandler
+class CTurboJpegHandler : public IJpegHandler
 {
 public:
 	CTurboJpegHandler();

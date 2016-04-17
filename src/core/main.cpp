@@ -21,7 +21,7 @@ void printUsage(const char* program)
 	printf("Usage: %s project_file [first_run_args]\n", program);
 	printf("\t First run args:\n");
 	printf("\t\t -n number_of_comparison_images [> 100]\n");
-	printf("\t\t -i image_folder\n");
+	printf("\t\t -d data_directory\n");
 	printf("\t\t [-t num_threads = 1]\n");
 	printf("\t\t [-k (keep images)]\n");
 }
@@ -62,19 +62,19 @@ int main(int argc, char* argv[])
 
 		//check if this is a valid configuration - it will be overwritten if it is
 		CSettingsRegistry registry(argv[1]);
-		configurationIsValid = true;
+		bool projectFileExists = true;
 		try
 		{
 			registry.getUInt32("core", "programCounter");
 		}
 		catch (...)
 		{
-			configurationIsValid = false;
+			projectFileExists = false;
 		}
 
-		if (configurationIsValid)
+		if (projectFileExists)
 		{
-			printf("Too many arguments or project file already exists!\n");
+			printf("Project file already exists!\n");
 			printUsage(argv[0]);
 			return 1;
 		}
@@ -86,14 +86,14 @@ int main(int argc, char* argv[])
 		bool keepImages = false;
 
 		int c;
-		while ((c = getopt(argc-1, argv+1, "n:i:t:k")) != -1)
+		while ((c = getopt(argc-1, argv+1, "n:d:t:k")) != -1)
 		{
 			switch (c)
 			{
 			case 'n':
 				imageCount = strtoul(optarg, NULL, 10);
 				break;
-			case 'i':
+			case 'd':
 				imageDir = optarg;
 				break;
 			case 't':
@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 				keepImages = true;
 				break;
 			case '?':
-				if (optopt == 'n' || optopt == 'i' || optopt == 't')
+				if (optopt == 'n' || optopt == 'd' || optopt == 't')
 				{
 					fprintf(stderr, "Option -%c requires an argument.\n", optopt);
 				}
@@ -152,6 +152,8 @@ int main(int argc, char* argv[])
 		registry.setUInt32("core", "keepImages", keepImages?1:0);
 
 		//create dirs/files
+		std::string imgDir = std::string(imageDir).append("/images");
+		mkdir(imgDir.c_str(), 0775);
 		std::string modelDir = std::string(imageDir).append("/model");
 		mkdir(modelDir.c_str(), 0775);
 		std::string unusualDir = std::string(imageDir).append("/unusual");

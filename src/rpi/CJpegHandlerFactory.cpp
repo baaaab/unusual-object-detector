@@ -1,5 +1,6 @@
 #include "CJpegHandlerFactory.h"
 
+#include "IJpegHandler.h"
 #include "../jpeg/jpeg-compressor/CJpegHandler.h"
 
 CJpegHandlerFactory::CJpegHandlerFactory()

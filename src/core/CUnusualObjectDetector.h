@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <mutex>
 #include <thread>
+#include <memory>
 
 class CImageStore;
 class CSettingsRegistry;
@@ -17,6 +18,8 @@ class IImageSource;
 class CScoreDistribution;
 class CRepresentationFunctionBuilder;
 class CHogStore;
+class CRestController;
+class IExternalInterface;
 
 class CUnusualObjectDetector
 {
@@ -69,6 +72,13 @@ public:
 		scoreModelTask_t smt;
 	};
 
+	// GUI functions
+	uint32_t           getProgramCounter    ();
+	std::vector<float> getScoreDistribution ();
+	CModel*            getModel             ();
+
+	CImageStore*       getImageStore        ();
+
 private:
 
 	void initialiseWorkerThreads();
@@ -82,29 +92,32 @@ private:
 	void correlateHogs(task_t* task);
 	void buildRepresentationFunction();
 
-	std::string _xmlFile;
-	std::string _coreRegistryGroup;
+	std::string                     _xmlFile;
+	std::string                     _coreRegistryGroup;
 
-	CSettingsRegistry* _registry;
-	CImageStore* _imageStore;
-	ILiveResultManager* _resultManager;
-	CHogStore* _hogStore;
-	CModel* _model;
-	IImageSource* _imageSource;
-	CScoreDistribution* _scoreDistrubution;
+	CSettingsRegistry*              _registry;
+	CImageStore*                    _imageStore;
+	ILiveResultManager*             _resultManager;
+	CHogStore*                      _hogStore;
+	std::shared_ptr<IExternalInterface> _externalInterface;
+	CRestController*                _restController;
+
+	CModel*                         _model;
+	IImageSource*                   _imageSource;
+	CScoreDistribution*             _scoreDistrubution;
 	CRepresentationFunctionBuilder* _representationFunctionBuilder;
 
-	uint32_t _programCounter;
-	uint32_t _imageCount;
-	std::string _imageDir;
-	bool _keepImages;
-	CHog* _newHog;
+	uint32_t                        _programCounter;
+	uint32_t                        _imageCount;
+	std::string                     _imageDir;
+	bool                            _keepImages;
+	CHog*                           _newHog;
 
-	std::thread _mainThread;
+	std::thread                     _mainThread;
 
-	std::vector<task_t*> _tasks;
+	std::vector<task_t*>            _tasks;
 
-	bool _shutdownRequested;
+	bool                            _shutdownRequested;
 
 };
 

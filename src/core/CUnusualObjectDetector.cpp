@@ -17,6 +17,12 @@
 #include "CScoreDistribution.h"
 #include "CRepresentationFunctionBuilder.h"
 
+#include "../external_interface/CExternalInterface.h"
+
+#include "../rest/CRestController.h"
+
+#include "../debug/CDirectoryImageSource.h"
+
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/operations.hpp>
@@ -36,6 +42,7 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 		_imageStore( NULL),
 		_resultManager( NULL),
 		_hogStore( NULL ),
+		_restController( NULL ),
 
 		_model( NULL),
 		_imageSource( NULL),
@@ -64,14 +71,20 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 
 	_model = new CModel(HOG_NUM_CELLS, _registry);
 
-	_resultManager = ILiveResultManager::GetResultManager(_imageStore, _scoreDistrubution, _model);
-
 	std::string hogStoreFilename = modelDir + std::string("/hogs.dat");
 	_hogStore = new CHogStore(hogStoreFilename, _imageCount);
 	_hogStore->modelHogs(_model);
 
 	_imageSource = IImageSource::GetSource(_registry);
+	//_imageSource = new CDirectoryImageSource("/mnt/disk1/uod/images/images");
 	_representationFunctionBuilder = new CRepresentationFunctionBuilder(_model, _hogStore);
+
+	_externalInterface = std::make_shared<CExternalInterface>(this);
+
+	_restController = new CRestController(_registry, _externalInterface);
+	_restController->initialise();
+
+	_resultManager = _restController;
 
 	initialiseWorkerThreads();
 
@@ -94,11 +107,14 @@ CUnusualObjectDetector::~CUnusualObjectDetector()
 		delete *itr;
 	}
 
-	delete _scoreDistrubution;
+	delete _restController;
+
+	delete _representationFunctionBuilder;
 	delete _imageSource;
-	delete _model;
 	delete _hogStore;
-	delete _resultManager;
+	delete _model;
+	delete _scoreDistrubution;
+
 	delete _imageStore;
 	delete _registry;
 }
@@ -115,6 +131,36 @@ CUnusualObjectDetector::task_t::task_t() :
 CUnusualObjectDetector::task_t::~task_t()
 {
 	thread.join();
+}
+
+uint32_t CUnusualObjectDetector::getProgramCounter()
+{
+	return _programCounter;
+}
+
+std::vector<float> CUnusualObjectDetector::getScoreDistribution()
+{
+	std::vector<float> retScoreDistribution;
+
+	std::vector<float> scoreDistribution;
+	uint32_t index = 0;
+
+	_scoreDistrubution->getScoreDistribution(index, scoreDistribution);
+
+	retScoreDistribution.insert(retScoreDistribution.end(), scoreDistribution.begin() + index, scoreDistribution.end());
+	retScoreDistribution.insert(retScoreDistribution.end(), scoreDistribution.begin(), scoreDistribution.begin() + index);
+
+	return retScoreDistribution;
+}
+
+CModel* CUnusualObjectDetector::getModel()
+{
+	return _model;
+}
+
+CImageStore* CUnusualObjectDetector::getImageStore()
+{
+	return _imageStore;
 }
 
 void CUnusualObjectDetector::initialiseWorkerThreads()
@@ -186,16 +232,15 @@ void CUnusualObjectDetector::mainThreadFunction()
 
 		cv::Mat image = _imageSource->getImage();
 
-		if(image.rows != 512 || image.cols != 512)
+		if(image.rows != IMAGE_HEIGHT || image.cols != IMAGE_WIDTH)
 		{
-			cv::resize(image, resizedImage, cv::Size(512, 512));
+			cv::resize(image, resizedImage, cv::Size(IMAGE_WIDTH, IMAGE_HEIGHT));
 		}
 		else
 		{
 			resizedImage = image;
 		}
 
-		_resultManager->setSourceImage(_programCounter, resizedImage);
 		_imageStore->saveImage(resizedImage, _programCounter);
 
 		_newHog = new CHog(resizedImage, _programCounter);
@@ -221,7 +266,7 @@ void CUnusualObjectDetector::mainThreadFunction()
 		bool isUnusual = _programCounter > _imageCount && _scoreDistrubution->isScoreLow(maxScore);
 		_scoreDistrubution->logScore(maxScore);
 
-		_resultManager->setMatchImage(_hogStore->at(bestMatch).getCreatedAt(), maxScore, isUnusual);
+		_resultManager->setMatchImage(_programCounter, _hogStore->at(bestMatch).getCreatedAt(), maxScore, isUnusual);
 		if(isUnusual)
 		{
 			//save file
@@ -406,7 +451,6 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 
 	dispatchWorkerThreads(JOB_SCORE_MODEL);
 	waitForWorkerThreadCompletion();
-
 
 	//read scores from worker threads
 	for (auto itr = _tasks.begin(); itr != _tasks.end(); ++itr)
