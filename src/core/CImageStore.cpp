@@ -69,7 +69,11 @@ cv::Mat CImageStore::fetchImage(uint32_t programCounter)
 
 	unsigned char* buffer = new unsigned char[size];
 
-	fread(buffer, 1, size, fh);
+	if(fread(buffer, 1, size, fh) != size)
+	{
+		printf("%s::%s Read error for file: %s\n", __FILE__, __FUNCTION__, filename.c_str());
+		throw 1;
+	}
 	fclose(fh);
 
 	cv::Mat im = _jpegHandler->decompress(buffer, size);

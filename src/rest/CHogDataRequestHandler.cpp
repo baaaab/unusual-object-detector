@@ -28,7 +28,7 @@ bool CHogDataRequestHandler::validPath(const char* path, const char* method)
 	return false;
 }
 
-int CHogDataRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, uint32_t* upload_data_size)
+int CHogDataRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, size_t* upload_data_size)
 {
 	uint32_t imageId;
 	sscanf(url, "/hog/%u", &imageId);

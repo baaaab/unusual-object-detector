@@ -27,7 +27,7 @@ public:
 
 private:
 
-	uint32_t getLevelsBaseAddress(uint32_t level);
+	uint32_t getLevelsBaseAddress(uint32_t level) const;
 
 	uint32_t _numCellsPerSide;
 	uint32_t _log2NumCellsPerSide;

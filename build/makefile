@@ -4,8 +4,11 @@ BUILDDIR := $(shell pwd)
 
 SRC_PATHS+= ../src/core/
 SRC_PATHS+= ../src/utils/
-SRC_PATHS+= ../src/jpeg/turbojpeg/
+SRC_PATHS+= ../src/jpeg
 SRC_PATHS+= ../src/x86/
+SRC_PATHS+= ../src/debug/
+SRC_PATHS+= ../src/rest/
+SRC_PATHS+= ../src/external_interface/
 
 VPATH = $(shell find $(SRC_PATHS) -type d)
 VPATH += $(BUILDDIR)
@@ -18,14 +21,14 @@ CORE_PCH=$(notdir $(CORE_PCH_FILENAME)).gch
 
 CC=g++
 LD=g++
-CFLAGS=-O0 -MMD -g -std=c++11
+CFLAGS=-Ofast -MMD -std=c++11 -march=native
 CFLAGS+= -I../include -pthread
-CFLAGS+= -Wall -Werror
+CFLAGS+= -Wall -Werror -ggdb
 
 PCHFLAGS := $(addprefix , $(CFLAGS))
 
 LDFLAGS+= -fwhole-program  $(OPTIMISATION_FLAGS) -pthread
-LDFLAGS+= $(shell curl-config --libs) -lpthread -lSDL -ljpeg -lc -lm -lX11 -lturbojpeg -lboost_system
+LDFLAGS+= $(shell curl-config --libs) -lpthread -ljpeg -lc -lm -lboost_system -lboost_filesystem -lmicrohttpd
 LDFLAGS+= -lopencv_core -lopencv_imgproc -lopencv_highgui
 
 all: $(CORE_PCH) $(TARGET)

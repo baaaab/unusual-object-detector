@@ -51,7 +51,7 @@ std::vector<uint16_t> CExternalInterface::getHog(uint32_t imageId)
 	return hog.getHOG();
 }
 
-std::vector<uint16_t> CExternalInterface::getRCH(uint32_t imageId)
+std::vector<float> CExternalInterface::getRCH(uint32_t imageId)
 {
 	CImageStore* imageStore = _unusualObjectDetector->getImageStore();
 	cv::Mat im = imageStore->fetchImage(imageId);

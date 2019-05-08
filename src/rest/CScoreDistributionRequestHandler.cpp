@@ -27,7 +27,7 @@ bool CScoreDistributionRequestHandler::validPath(const char* path, const char* m
 	return false;
 }
 
-int CScoreDistributionRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, uint32_t* upload_data_size)
+int CScoreDistributionRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, size_t* upload_data_size)
 {
 	std::vector<float> scoreDistribution = _externalInterface->getScoreDistribution();
 

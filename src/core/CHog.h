@@ -20,6 +20,8 @@ public:
 	void computeRCH(CModel* model);
 
 	static float Correlate(CHog& a, CHog& b, CModel* model);
+	static float MeasureSimilarity(CHog& a, CHog& b, CModel* model);
+
 	void setMostRecentMatch(uint32_t programCounter);
 
 	uint32_t getCreatedAt();
@@ -36,7 +38,7 @@ public:
 
 	//GUI functions
 	std::vector<uint16_t> getHOG();
-	std::vector<uint16_t> getRCH();
+	std::vector<float> getRCH();
 
 private:
 	//accessible form CHogStore
@@ -44,7 +46,7 @@ private:
 	void replace(CHog& other);
 	static uint32_t GetSizeBytes();
 
-	std::vector<uint16_t> _rch;
+	std::vector<float> _rch;
 	std::vector<uint16_t> _values;
 	uint32_t _createdAt;
 	uint32_t _lastBestMatch;

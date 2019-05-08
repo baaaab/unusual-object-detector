@@ -28,7 +28,7 @@ bool CRchDataRequestHandler::validPath(const char* path, const char* method)
 	return false;
 }
 
-int CRchDataRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, uint32_t* upload_data_size)
+int CRchDataRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, size_t* upload_data_size)
 {
 	uint32_t imageId;
 	sscanf(url, "/rch/%u", &imageId);
@@ -43,7 +43,7 @@ int CRchDataRequestHandler::handleRequest(struct MHD_Connection* connection, con
 	writer.StartArray();
 	for(auto itr = hog.begin(); itr != hog.end(); ++itr)
 	{
-		writer.Int(*itr);
+		writer.Double(*itr);
 	}
 	writer.EndArray();
 	writer.EndObject();

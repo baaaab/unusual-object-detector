@@ -4,7 +4,7 @@ BUILDDIR := $(shell pwd)
 
 SRC_PATHS+= ../src/core/
 SRC_PATHS+= ../src/utils/
-SRC_PATHS+= ../src/jpeg/jpeg-compressor/
+SRC_PATHS+= ../src/jpeg
 SRC_PATHS+= ../src/rpi/
 SRC_PATHS+= ../src/debug/
 SRC_PATHS+= ../src/rest/
@@ -21,7 +21,8 @@ CORE_PCH=$(notdir $(CORE_PCH_FILENAME)).gch
 
 CC=g++
 LD=g++
-OPTIMISATION_FLAGS= -mfloat-abi=hard -mfpu=neon-vfpv4 -O2 -ffast-math # -mcpu=cortex-a7 -flto
+OPTIMISATION_FLAGS= -mfloat-abi=hard -mfpu=neon-vfpv4 -Ofast -ffast-math -pg
+
 CFLAGS=-MMD -std=c++11 -Wall -ggdb $(OPTIMISATION_FLAGS) -pthread
 
 CFLAGS+=-I. -I../include -pthread `pkg-config --cflags opencv`
@@ -31,9 +32,9 @@ CFLAGS+= -I/opt/vc/include/interface/
 CFLAGS+= -I/opt/vc/include/interface/vcos/pthreads
 CFLAGS+= -I/opt/vc/include/interface/vmcs_host/linux/
 
-PCHFLAGS := $(addprefix , $(CFLAGS))
+PCHFLAGS = $(CFLAGS)
 
-LDFLAGS+= $(OPTIMISATION_FLAGS) -pthread -fwhole-program
+LDFLAGS+= $(OPTIMISATION_FLAGS) -lpthread -fwhole-program
 LDFLAGS+= -lcurl -L/opt/vc/lib -lc -lm `pkg-config --libs opencv` -lmmal_core -lmmal_util -lmmal_vc_client -lvcos -lbcm_host -lboost_system -lboost_filesystem -lmicrohttpd
 
 all: $(CORE_PCH) $(TARGET)

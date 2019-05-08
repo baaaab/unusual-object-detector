@@ -193,6 +193,7 @@ int main(int argc, char* argv[])
 	signal(SIGINT, sigHandler);
 
 	CUnusualObjectDetector* uod = new CUnusualObjectDetector(argv[1]);
+	uod->initialise();
 
 	while (!shutdownRequested)
 	{

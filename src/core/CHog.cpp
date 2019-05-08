@@ -6,6 +6,9 @@
 #include <opencv2/imgproc/types_c.h>
 #include <cmath>
 #include <cstdint>
+#ifdef __ARM_NEON__
+#include <arm_neon.h>
+#endif
 
 #include "../../include/settings.h"
 #include "CModel.h"
@@ -100,10 +103,10 @@ CHog::CHog(cv::Mat image, uint32_t programCounter) :
 			{
 				sum += histogram[z];
 			}
-			float scalingFactor = std::max(sum, 26000.0f);
+
 			for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 			{
-				_values[(sqy * HOG_NUM_CELLS + sqx) * HOG_NUM_BINS + z] = (histogram[z] / scalingFactor) * SCALING_VALUE;
+				_values[(sqy * HOG_NUM_CELLS + sqx) * HOG_NUM_BINS + z] = (histogram[z] / sum) * SCALING_VALUE;
 			}
 		}
 	}
@@ -117,7 +120,7 @@ CHog::~CHog()
 void CHog::computeRCH(CModel* model)
 {
 	//clear old rch
-	_rch = std::vector<uint16_t>();
+	_rch = std::vector<float>();
 
 	uint32_t numLevels = model->getNumLevels();
 
@@ -144,7 +147,7 @@ void CHog::computeRCH(CModel* model)
 					{
 						for (uint32_t x2 = 0; x2 < edgeCellsToMerge; x2++)
 						{
-							uint32_t index = ((y * edgeCellsToMerge + y2) * HOG_NUM_CELLS) + ((x * edgeCellsToMerge + x2)) * HOG_NUM_BINS;
+							uint32_t index = (((y * edgeCellsToMerge + y2) * HOG_NUM_CELLS) + (x * edgeCellsToMerge + x2)) * HOG_NUM_BINS;
 
 							for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 							{
@@ -168,6 +171,41 @@ void CHog::computeRCH(CModel* model)
 	}
 }
 
+float multiplyAccumulateArrays(float* a, float* b, uint32_t length)
+{
+	float sum = 0;
+	for (uint32_t h = 0; h < length; h ++)
+	{
+		sum += a[h] * b[h];
+	}
+	return sum;
+}
+
+float __inline multiplyAccumulateArrays4(float* a, float* b, uint32_t length)
+{
+#ifdef __ARM_NEON__
+	float32x4_t sn = vdupq_n_f32(0.0f);
+	for (uint32_t h = 0; h < length; h += 8)
+	{
+		float32x4_t an = vld1q_f32(a + h);
+		float32x4_t bn = vld1q_f32(b + h);
+		sn = vfmaq_f32(sn, an, bn);
+
+		an = vld1q_f32(a + h + 4);
+		bn = vld1q_f32(b + h + 4);
+		sn = vfmaq_f32(sn, an, bn);
+	}
+
+	float32x2_t l = vget_low_f32(sn);
+	float32x2_t h = vget_high_f32(sn);
+	float32x2_t s = vadd_f32(l, h);
+
+	return  vget_lane_f32(s, 0) + vget_lane_f32(s, 1);
+#else
+	return multiplyAccumulateArrays(a, b, length);
+#endif
+}
+
 float CHog::Correlate(CHog& a, CHog& b, CModel* model)
 {
 	if (a._rch.size() == 0 || b._rch.size() == 0 || a._rch.size() != b._rch.size())
@@ -175,31 +213,61 @@ float CHog::Correlate(CHog& a, CHog& b, CModel* model)
 		printf("%s::%s invalid RCH lengths: %u vs %u\n", __FILE__, __FUNCTION__, (uint32_t)a._rch.size(), (uint32_t)b._rch.size());
 		throw 1;
 	}
-	float score = 0;
 
-	for (uint32_t h = 0; h < a._rch.size(); h++)
+	float score = multiplyAccumulateArrays4(a._rch.data(), b._rch.data(), a._rch.size());
+
+	return (float)score / (a._rch.size() * SCALING_VALUE * SCALING_VALUE);
+}
+
+float sumArraySquareDifferences(float* a, float* b, uint32_t length)
+{
+	float sum = 0;
+	for (uint32_t h = 0; h < length; h ++)
 	{
-		score += (float)(a._rch[h]) * (float)(b._rch[h]);
+		sum += pow(a[h] - b[h], 2);
 	}
 
-	return score / (a._rch.size() * SCALING_VALUE * SCALING_VALUE);
+	return sum;
+}
+
+float CHog::MeasureSimilarity(CHog& a, CHog& b, CModel* model)
+{
+	if (a._rch.size() == 0 || b._rch.size() == 0 || a._rch.size() != b._rch.size())
+	{
+		printf("%s::%s invalid RCH lengths: %u vs %u\n", __FILE__, __FUNCTION__, (uint32_t)a._rch.size(), (uint32_t)b._rch.size());
+		throw 1;
+	}
+
+	float score = sumArraySquareDifferences(a._rch.data(), b._rch.data(), a._rch.size());
+
+	return (float)score / (a._rch.size() * SCALING_VALUE * SCALING_VALUE);
 }
 
 bool CHog::read(FILE* fh)
 {
 	uint32_t tmp = 0xdeadbeef;
 
-	fread(&tmp, 1, sizeof(tmp), fh);
+	bool failed = false;
 
-	if (tmp != MAGIC)
+	failed = failed || (fread(&tmp, 1, sizeof(tmp), fh) != sizeof(tmp));
+
+	if (failed || tmp != MAGIC)
 	{
 		printf("%s::%s Error reading HOGs from file: data is corrupted (%08x != %08x)\n", __FILE__, __FUNCTION__, tmp, MAGIC);
 		throw 1;
 	}
 
-	fread(&_createdAt, 1, sizeof(_createdAt), fh);
-	fread(&_lastBestMatch, 1, sizeof(_lastBestMatch), fh);
-	fread(&_numHits, 1, sizeof(_numHits), fh);
+
+
+	failed = failed || (fread(&_createdAt, 1, sizeof(_createdAt), fh) != sizeof(_createdAt));
+	failed = failed || (fread(&_lastBestMatch, 1, sizeof(_lastBestMatch), fh) != sizeof(_lastBestMatch));
+	failed = failed || (fread(&_numHits, 1, sizeof(_numHits), fh) != sizeof(_numHits));
+
+	if(failed)
+	{
+		printf("%s::%s Error reading HOGs from file: read error\n", __FILE__, __FUNCTION__);
+		return false;
+	}
 
 	return fread(_values.data(), sizeof(_values[0]), HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS, fh) == HOG_NUM_BINS * HOG_NUM_CELLS * HOG_NUM_CELLS;
 }
@@ -227,7 +295,7 @@ std::vector<uint16_t> CHog::getHOG()
 	return _values;
 }
 
-std::vector<uint16_t> CHog::getRCH()
+std::vector<float> CHog::getRCH()
 {
 	return _rch;
 }

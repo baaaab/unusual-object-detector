@@ -18,7 +18,7 @@ public:
 	virtual std::vector<std::vector<bool>> getModel             () = 0;
 
 	virtual std::vector<uint16_t>          getHog               (uint32_t imageId) = 0;
-	virtual std::vector<uint16_t>          getRCH               (uint32_t imageId) = 0;
+	virtual std::vector<float>             getRCH               (uint32_t imageId) = 0;
 };
 
 #endif /* SRC_EXTERNAL_INTERFACE_IEXTERNALINTERFACE_H_ */

@@ -14,7 +14,7 @@ public:
 	virtual ~CHogDataRequestHandler();
 
 	bool validPath(const char* path, const char* method);
-	int handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, uint32_t* upload_data_size);
+	int handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, size_t* upload_data_size);
 
 private:
 	std::shared_ptr<IExternalInterface> _externalInterface;

@@ -22,7 +22,7 @@ public:
 	std::vector<std::vector<bool>> getModel             ();
 
 	std::vector<uint16_t>          getHog               (uint32_t imageId);
-	std::vector<uint16_t>          getRCH               (uint32_t imageId);
+	std::vector<float>             getRCH               (uint32_t imageId);
 
 private:
 

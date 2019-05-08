@@ -26,7 +26,7 @@ void CRepresentationFunctionBuilder::scoreModel(CUnusualObjectDetector::task_t* 
 		float bestScore = 0.0f;
 		for (uint32_t x = task->smt.xBegin; x < task->smt.xEnd && !task->shutdownRequested; x++)
 		{
-			bestScore = std::max(bestScore, CHog::Correlate(_hogStore->at(c), _hogStore->at(x), _model));
+			bestScore = std::max(bestScore, CHog::MeasureSimilarity(_hogStore->at(c), _hogStore->at(x), _model));
 		}
 		totalScore += bestScore;
 	}

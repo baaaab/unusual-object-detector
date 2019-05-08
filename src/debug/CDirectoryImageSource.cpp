@@ -49,7 +49,10 @@ cv::Mat CDirectoryImageSource::getImage()
 	{
 		FILE* fh = fopen(jpg.c_str(), "r");
 		uint8_t* data = new uint8_t[st.st_size];
-		fread(data, 1, st.st_size, fh);
+		if(fread(data, 1, st.st_size, fh) != (uint32_t)st.st_size)
+		{
+			printf("%s::%s error reading file %s\n", __FILE__, __FUNCTION__, jpg.c_str());
+		}
 		fclose(fh);
 		cv::Mat mat = _jpegHandler->decompress(data, st.st_size);
 		delete[] data;

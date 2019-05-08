@@ -75,8 +75,10 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 	_hogStore = new CHogStore(hogStoreFilename, _imageCount);
 	_hogStore->modelHogs(_model);
 
-	_imageSource = IImageSource::GetSource(_registry);
-	//_imageSource = new CDirectoryImageSource("/mnt/disk1/uod/images/images");
+	//_imageSource = IImageSource::GetSource(_registry);
+	//_imageSource = new CDirectoryImageSource("/mnt/disk1/uod/real/images");
+	_imageSource = new CDirectoryImageSource("../tests/images");
+
 	_representationFunctionBuilder = new CRepresentationFunctionBuilder(_model, _hogStore);
 
 	_externalInterface = std::make_shared<CExternalInterface>(this);
@@ -85,10 +87,6 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 	_restController->initialise();
 
 	_resultManager = _restController;
-
-	initialiseWorkerThreads();
-
-	_mainThread = std::thread(&CUnusualObjectDetector::mainThreadFunction, this);
 }
 
 CUnusualObjectDetector::~CUnusualObjectDetector()
@@ -131,6 +129,13 @@ CUnusualObjectDetector::task_t::task_t() :
 CUnusualObjectDetector::task_t::~task_t()
 {
 	thread.join();
+}
+
+void CUnusualObjectDetector::initialise()
+{
+	initialiseWorkerThreads();
+
+	_mainThread = std::thread(&CUnusualObjectDetector::mainThreadFunction, this);
 }
 
 uint32_t CUnusualObjectDetector::getProgramCounter()
@@ -272,7 +277,10 @@ void CUnusualObjectDetector::mainThreadFunction()
 			//save file
 			std::string imagePath = _imageStore->fetchImagePath(_programCounter);
 			std::string cmd = std::string("cp ").append(imagePath).append(" ").append(_imageDir).append("/unusual/");
-			system(cmd.c_str());
+			if(system(cmd.c_str()) != 0)
+			{
+				printf("%s::%s error copying file to unusual folder\n", __FILE__, __FUNCTION__);
+			};
 		}
 
 		if (_programCounter < _imageCount)
@@ -461,40 +469,44 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 	for (uint32_t level = 2; level < numSplittableLevels && !_shutdownRequested; level++)
 	{
 		uint32_t edgeCellsThisLevel = 1 << level;
+		float scoreToBeatThisLevel = scoreToBeat;
+		CModel thisLevelModel = *_model;
+
 		for (uint32_t y = 0; y < edgeCellsThisLevel && !_shutdownRequested; y++)
 		{
 			for (uint32_t x = 0; x < edgeCellsThisLevel && !_shutdownRequested; x++)
 			{
+				CModel thisModel = thisLevelModel;
+
 				if (!_model->isHandledAtHigherLevel(level, x, y))
 				{
 					//try splitting at this level to see if score increases
-					_model->setHandleAtThisLevel(level, x, y, true);
+					thisModel.setHandleAtThisLevel(level, x, y, true);
 
-					float splitScore = 0.0f;
 					bob.reset();
-					_hogStore->modelHogs(_model);
+					_hogStore->modelHogs(&thisModel);
 					printf("Modelling hogs: %f seconds\n", bob.reset() / 1000000.0f);
 					dispatchWorkerThreads(JOB_SCORE_MODEL);
 					waitForWorkerThreadCompletion();
 					printf("Worker threads: %f seconds\n", bob.reset() / 1000000.0f);
 
 					//read scores from worker threads
+					float splitScore = 0.0f;
 					for (auto itr = _tasks.begin(); itr != _tasks.end(); ++itr)
 					{
 						splitScore = std::max(splitScore, (*itr)->smt.score);
 					}
 
-					if(splitScore > scoreToBeat)
+					if(splitScore > scoreToBeatThisLevel)
 					{
-						printf("    splitting at: level = %u, x = %2u, y = %2u [score = %f / %f]\n", level, x, y, splitScore, scoreToBeat);
-						scoreToBeat = splitScore;
+						printf("    splitting at: level = %u, x = %2u, y = %2u [score = %f / %f]\n", level, x, y, splitScore, scoreToBeatThisLevel);
+						_model->setHandleAtThisLevel(level, x, y, true);
 					}
 					else
 					{
-						printf("not splitting at: level = %u, x = %2u, y = %2u [score = %f / %f]\n", level, x, y, splitScore, scoreToBeat);
-						//undo
-						_model->setHandleAtThisLevel(level, x, y, false);
+						printf("not splitting at: level = %u, x = %2u, y = %2u [score = %f / %f]\n", level, x, y, splitScore, scoreToBeatThisLevel);
 					}
+					scoreToBeat = std::max(scoreToBeat, splitScore);
 				}
 			}
 		}

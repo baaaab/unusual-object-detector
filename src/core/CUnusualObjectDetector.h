@@ -72,6 +72,8 @@ public:
 		scoreModelTask_t smt;
 	};
 
+	void initialise();
+
 	// GUI functions
 	uint32_t           getProgramCounter    ();
 	std::vector<float> getScoreDistribution ();

@@ -29,7 +29,7 @@ bool CProgramDataRequestHandler::validPath(const char* path, const char* method)
 	return false;
 }
 
-int CProgramDataRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, uint32_t* upload_data_size)
+int CProgramDataRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, size_t* upload_data_size)
 {
 	rapidjson::StringBuffer s;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(s);

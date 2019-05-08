@@ -148,7 +148,16 @@ void CModel::setHandleAtThisLevel(uint32_t level, uint32_t x, uint32_t y, bool v
 
 std::vector<std::vector<bool>> CModel::getModel() const
 {
-	return std::vector<std::vector<bool>>();
+	std::vector<std::vector<bool>> ret;
+	for (uint32_t level = 0; level < _log2NumCellsPerSide; level++)
+	{
+		std::vector<bool> n;
+		auto start = _levels.begin() + getLevelsBaseAddress(level);
+		auto end = _levels.begin() + getLevelsBaseAddress(level + 1);
+		n.insert(n.end(), start, end);
+		ret.push_back(n);
+	}
+	return ret;
 }
 
 void CModel::saveToRegistry()
@@ -176,14 +185,14 @@ void CModel::saveToRegistry()
 	}
 }
 
-uint32_t CModel::getLevelsBaseAddress(uint32_t level)
+uint32_t CModel::getLevelsBaseAddress(uint32_t level) const
 {
 	uint32_t baseAddress = 0;
 	while(level)
 	{
+		level--;
 		uint32_t edgeCellsThisLevel = 1 << level;
 		baseAddress += edgeCellsThisLevel * edgeCellsThisLevel;
-		level--;
 	}
 	return baseAddress;
 }
