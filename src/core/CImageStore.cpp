@@ -2,6 +2,7 @@
 
 #include <CJpegHandlerFactory.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 CImageStore::CImageStore(CSettingsRegistry* registry) :
 		_jpegHandler( NULL)
@@ -81,6 +82,29 @@ cv::Mat CImageStore::fetchImage(uint32_t programCounter)
 	delete[] buffer;
 
 	return im;
+
+}
+
+std::vector<uint32_t> CImageStore::getUnusualImageList() const
+{
+	std::vector<uint32_t> ret;
+	std::string unusualImagePath = _imageDir + "/unusual";
+	DIR* dir = opendir(unusualImagePath.c_str());
+	if(dir != NULL)
+	{
+		struct dirent* entry = NULL;
+		while((entry = readdir(dir)) != NULL)
+		{
+			uint32_t id = strtoul(entry->d_name, NULL, 10);
+			if(id)
+			{
+				ret.push_back(id);
+			}
+		}
+		closedir(dir);
+	}
+	std::sort(ret.begin(), ret.end());
+	return ret;
 
 }
 

@@ -18,6 +18,8 @@ namespace
 //for float -> uint16_t conversions
 const float SCALING_VALUE = 65535.0f;
 const uint32_t MAGIC = 0x2955a6a5;
+float minSum = 999999999999999999.0f;
+float maxSum = 0;
 }
 
 CHog::CHog() :
@@ -103,6 +105,18 @@ CHog::CHog(cv::Mat image, uint32_t programCounter) :
 			{
 				sum += histogram[z];
 			}
+			if(sum < minSum)
+			{
+				minSum = sum;
+
+			}
+			//printf("sum %f\n", sum);
+			if(sum > maxSum)
+			{
+				maxSum = sum;
+				//printf("New max: %f\n", maxSum);
+			}
+			sum = std::max(500.0f, sum);
 
 			for (uint32_t z = 0; z < HOG_NUM_BINS; z++)
 			{
@@ -176,7 +190,7 @@ float multiplyAccumulateArrays(float* a, float* b, uint32_t length)
 	float sum = 0;
 	for (uint32_t h = 0; h < length; h ++)
 	{
-		sum += a[h] * b[h];
+		sum += 65536.0f - fabsf(a[h] - b[h]);
 	}
 	return sum;
 }
@@ -214,7 +228,7 @@ float CHog::Correlate(CHog& a, CHog& b, CModel* model)
 		throw 1;
 	}
 
-	float score = multiplyAccumulateArrays4(a._rch.data(), b._rch.data(), a._rch.size());
+	float score = multiplyAccumulateArrays(a._rch.data(), b._rch.data(), a._rch.size());
 
 	return (float)score / (a._rch.size() * SCALING_VALUE * SCALING_VALUE);
 }

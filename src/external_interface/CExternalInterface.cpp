@@ -60,3 +60,8 @@ std::vector<float> CExternalInterface::getRCH(uint32_t imageId)
 	hog.computeRCH(model);
 	return hog.getRCH();
 }
+
+std::vector<uint32_t>CExternalInterface::getUnusualImageList() const
+{
+	return _unusualObjectDetector->getImageStore()->getUnusualImageList();
+}

@@ -3,6 +3,8 @@
 
 #include <opencv2/core/core.hpp>
 #include <string>
+#include <vector>
+#include <inttypes.h>
 
 #include "../utils/CSettingsRegistry.h"
 #include <IJpegHandler.h>
@@ -17,6 +19,8 @@ public:
 
 	std::string fetchImagePath(uint32_t programCounter);
 	cv::Mat fetchImage(uint32_t programCounter);
+
+	std::vector<uint32_t> getUnusualImageList() const;
 
 private:
 	IJpegHandler* _jpegHandler;

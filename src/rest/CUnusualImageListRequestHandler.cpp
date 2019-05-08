@@ -1,50 +1,46 @@
-#include "CRchDataRequestHandler.h"
+#include "CUnusualImageListRequestHandler.h"
 
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 
 #include "../external_interface/IExternalInterface.h"
 
-CRchDataRequestHandler::CRchDataRequestHandler(IExternalInterface* externalInterface) :
+CUnusualImageListRequestHandler::CUnusualImageListRequestHandler(IExternalInterface* externalInterface) :
 	_externalInterface( externalInterface )
 {
 
 }
 
-CRchDataRequestHandler::~CRchDataRequestHandler()
+CUnusualImageListRequestHandler::~CUnusualImageListRequestHandler()
 {
 
 }
 
-bool CRchDataRequestHandler::validPath(const char* path, const char* method)
+bool CUnusualImageListRequestHandler::validPath(const char* path, const char* method)
 {
 	if (strcmp(method, "GET") == 0)
 	{
-		uint32_t imageId;
-		return (sscanf(path, "/rch/%u", &imageId) == 1);
+		return (strstr(path, "/unusualImageList") == path);
 	}
 	return false;
 }
 
-int CRchDataRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, size_t* upload_data_size)
+int CUnusualImageListRequestHandler::handleRequest(struct MHD_Connection* connection, const char* url, const char* method, const char* upload_data, size_t* upload_data_size)
 {
-	uint32_t imageId;
-	sscanf(url, "/rch/%u", &imageId);
-
-	auto hog = _externalInterface->getRCH(imageId);
+	auto unusualImages = _externalInterface->getUnusualImageList();
 
 	rapidjson::StringBuffer s;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(s);
 
 	writer.StartObject();
-	writer.Key("rch");
+	writer.Key("unusualImageList");
 	writer.StartArray();
-	for(auto itr = hog.begin(); itr != hog.end(); ++itr)
+	for(auto itr = unusualImages.begin(); itr != unusualImages.end(); ++itr)
 	{
-		writer.Double(*itr);
+		writer.Int(*itr);
 	}
 	writer.EndArray();
 	writer.EndObject();

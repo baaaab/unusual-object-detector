@@ -24,6 +24,8 @@ public:
 	std::vector<uint16_t>          getHog               (uint32_t imageId);
 	std::vector<float>             getRCH               (uint32_t imageId);
 
+	std::vector<uint32_t>          getUnusualImageList  () const;
+
 private:
 
 	CUnusualObjectDetector* _unusualObjectDetector;

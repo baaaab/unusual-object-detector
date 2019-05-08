@@ -1,6 +1,6 @@
 #include "CHttpServer.h"
 
-#include "IhttpRequestHandler.h"
+#include "IHttpRequestHandler.h"
 #include <algorithm>
 #include <stdio.h>
 #include <string.h>

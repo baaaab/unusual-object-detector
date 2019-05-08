@@ -31,8 +31,6 @@
 namespace
 {
 	const uint32_t IDLE_THREAD_SLEEP_US = 100;
-
-	typedef std::lock_guard<std::recursive_mutex> AutoMutex;
 }
 
 CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
@@ -75,13 +73,13 @@ CUnusualObjectDetector::CUnusualObjectDetector(const char* xmlFile) :
 	_hogStore = new CHogStore(hogStoreFilename, _imageCount);
 	_hogStore->modelHogs(_model);
 
-	//_imageSource = IImageSource::GetSource(_registry);
+	_imageSource = IImageSource::GetSource(_registry);
 	//_imageSource = new CDirectoryImageSource("/mnt/disk1/uod/real/images");
-	_imageSource = new CDirectoryImageSource("../tests/images");
+	//_imageSource = new CDirectoryImageSource("../tests/images");
 
 	_representationFunctionBuilder = new CRepresentationFunctionBuilder(_model, _hogStore);
 
-	_externalInterface = std::make_shared<CExternalInterface>(this);
+	_externalInterface = new CExternalInterface(this);
 
 	_restController = new CRestController(_registry, _externalInterface);
 	_restController->initialise();
@@ -98,7 +96,7 @@ CUnusualObjectDetector::~CUnusualObjectDetector()
 		(*itr)->shutdownRequested = true;
 	}
 
-	_mainThread.join();
+	pthread_join(_mainThread, NULL);
 
 	for (auto itr = _tasks.begin(); itr != _tasks.end(); ++itr)
 	{
@@ -128,14 +126,14 @@ CUnusualObjectDetector::task_t::task_t() :
 
 CUnusualObjectDetector::task_t::~task_t()
 {
-	thread.join();
+	pthread_join(thread, NULL);
 }
 
 void CUnusualObjectDetector::initialise()
 {
 	initialiseWorkerThreads();
 
-	_mainThread = std::thread(&CUnusualObjectDetector::mainThreadFunction, this);
+	pthread_create(&_mainThread, NULL, &CUnusualObjectDetector::MainThreadFunction, this);
 }
 
 uint32_t CUnusualObjectDetector::getProgramCounter()
@@ -210,19 +208,20 @@ void CUnusualObjectDetector::initialiseWorkerThreads()
 
 		_tasks.push_back(task);
 
-		_tasks[i]->thread = std::thread(&CUnusualObjectDetector::workerThreadFunction, this, task);
+		pthread_create(&_tasks[i]->thread, NULL, &CUnusualObjectDetector::WorkerThreadFunction, task);
 	}
+}
+
+void* CUnusualObjectDetector::MainThreadFunction(void* arg)
+{
+	CUnusualObjectDetector* p = static_cast<CUnusualObjectDetector*>(arg);
+	p->mainThreadFunction();
+	return NULL;
 }
 
 void CUnusualObjectDetector::mainThreadFunction()
 {
 	cv::Mat resizedImage;
-
-	//first image is blank
-	_imageSource->getImage();
-	sleep(1);
-	_imageSource->getImage();
-	sleep(1);
 
 	while (!_shutdownRequested)
 	{
@@ -279,7 +278,7 @@ void CUnusualObjectDetector::mainThreadFunction()
 			std::string cmd = std::string("cp ").append(imagePath).append(" ").append(_imageDir).append("/unusual/");
 			if(system(cmd.c_str()) != 0)
 			{
-				printf("%s::%s error copying file to unusual folder\n", __FILE__, __FUNCTION__);
+				printf("%s::%s error copying file to unusual folder [%s]\n", __FILE__, __FUNCTION__, cmd.c_str());
 			};
 		}
 
@@ -348,6 +347,13 @@ void CUnusualObjectDetector::mainThreadFunction()
 
 }
 
+void* CUnusualObjectDetector::WorkerThreadFunction(void* arg)
+{
+	task_t* task = static_cast<task_t*>(arg);
+	task->self->workerThreadFunction(task);
+	return NULL;
+}
+
 void CUnusualObjectDetector::workerThreadFunction(task_t* task)
 {
 	while(!task->shutdownRequested)
@@ -370,7 +376,7 @@ void CUnusualObjectDetector::workerThreadFunction(task_t* task)
 			_representationFunctionBuilder->scoreModel(task);
 		}
 
-		AutoMutex am(task->mutex);
+		std::lock_guard<std::recursive_mutex> am(task->mutex);
 		task->done = true;
 	}
 }
@@ -382,7 +388,7 @@ void CUnusualObjectDetector::dispatchWorkerThreads(jobType jobType)
 	{
 		(*itr)->job = jobType;
 
-		AutoMutex am((*itr)->mutex);
+		std::lock_guard<std::recursive_mutex> am((*itr)->mutex);
 		(*itr)->done = false;
 	}
 }
@@ -396,7 +402,7 @@ void CUnusualObjectDetector::waitForWorkerThreadCompletion()
 		uint32_t completedThreads = 0;
 		for (auto itr = _tasks.begin(); itr != _tasks.end(); ++itr)
 		{
-			AutoMutex am((*itr)->mutex);
+			std::lock_guard<std::recursive_mutex> am((*itr)->mutex);
 			if((*itr)->done)
 			{
 				completedThreads++;
@@ -415,13 +421,12 @@ void CUnusualObjectDetector::waitForWorkerThreadCompletion()
 
 void CUnusualObjectDetector::correlateHogs(task_t* task)
 {
-	task->hct.highestScore = 0.0f;
+	task->hct.highestScore = -1e27;
 	task->hct.bestMatch = 0;
 
 	for (uint32_t i = task->hct.startIndex; i < task->hct.endIndex && !task->shutdownRequested; i++)
 	{
 		float score = CHog::Correlate(*_newHog, _hogStore->at(i), _model);
-
 		if (score > task->hct.highestScore)
 		{
 			task->hct.highestScore = score;
@@ -448,7 +453,6 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 		{
 			for (uint32_t x = 0; x < edgeCellsThisLevel && !_shutdownRequested; x++)
 			{
-				//try splitting at this level to see if score increases
 				_model->setHandleAtThisLevel(level, x, y, true);
 			}
 		}
@@ -469,7 +473,6 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 	for (uint32_t level = 2; level < numSplittableLevels && !_shutdownRequested; level++)
 	{
 		uint32_t edgeCellsThisLevel = 1 << level;
-		float scoreToBeatThisLevel = scoreToBeat;
 		CModel thisLevelModel = *_model;
 
 		for (uint32_t y = 0; y < edgeCellsThisLevel && !_shutdownRequested; y++)
@@ -497,16 +500,16 @@ void CUnusualObjectDetector::buildRepresentationFunction()
 						splitScore = std::max(splitScore, (*itr)->smt.score);
 					}
 
-					if(splitScore > scoreToBeatThisLevel)
+					if(splitScore > scoreToBeat)
 					{
-						printf("    splitting at: level = %u, x = %2u, y = %2u [score = %f / %f]\n", level, x, y, splitScore, scoreToBeatThisLevel);
+						printf("    splitting at: level = %u, x = %2u, y = %2u [score = %f / %f]\n", level, x, y, splitScore, scoreToBeat);
 						_model->setHandleAtThisLevel(level, x, y, true);
+						scoreToBeat = splitScore;
 					}
 					else
 					{
-						printf("not splitting at: level = %u, x = %2u, y = %2u [score = %f / %f]\n", level, x, y, splitScore, scoreToBeatThisLevel);
+						printf("not splitting at: level = %u, x = %2u, y = %2u [score = %f / %f]\n", level, x, y, splitScore, scoreToBeat);
 					}
-					scoreToBeat = std::max(scoreToBeat, splitScore);
 				}
 			}
 		}

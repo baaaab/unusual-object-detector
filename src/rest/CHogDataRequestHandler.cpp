@@ -1,5 +1,6 @@
 #include "CHogDataRequestHandler.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include <rapidjson/writer.h>
@@ -7,7 +8,7 @@
 
 #include "../external_interface/IExternalInterface.h"
 
-CHogDataRequestHandler::CHogDataRequestHandler(std::shared_ptr<IExternalInterface> externalInterface) :
+CHogDataRequestHandler::CHogDataRequestHandler(IExternalInterface* externalInterface) :
 	_externalInterface( externalInterface )
 {
 
@@ -51,7 +52,8 @@ int CHogDataRequestHandler::handleRequest(struct MHD_Connection* connection, con
 	const char* json = s.GetString();
 	uint32_t length = s.GetSize();
 
-	struct MHD_Response * response = MHD_create_response_from_buffer(length, const_cast<char*>(json), MHD_RESPMEM_MUST_COPY);
+	struct MHD_Response* response = MHD_create_response_from_buffer(length, const_cast<char*>(json), MHD_RESPMEM_MUST_COPY);
+	MHD_add_response_header(response, "content-type", "application/json");
 
 	int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
 	MHD_destroy_response(response);

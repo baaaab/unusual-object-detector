@@ -41,6 +41,8 @@ bool CScoreDistribution::isScoreLow(float score)
 
 	float percentile = 100.0f * (firstGreaterThanScore - sorted.begin()) / (float)_scores.size();
 
+	printf(" firstGreaterThanScore = %zu, percentile = %f, ", firstGreaterThanScore - sorted.begin(), percentile);
+
 	return percentile < PERCENTILE;
 }
 

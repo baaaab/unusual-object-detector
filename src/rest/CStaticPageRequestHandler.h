@@ -1,7 +1,7 @@
 #ifndef SRC_HTTP_CSTATICPAGEREQUESTHANDLER_H_
 #define SRC_HTTP_CSTATICPAGEREQUESTHANDLER_H_
 
-#include "http/IhttpRequestHandler.h"
+#include "http/IHttpRequestHandler.h"
 
 #include <boost/filesystem.hpp>
 #include <map>

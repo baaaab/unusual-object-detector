@@ -5,8 +5,7 @@
 #include <vector>
 #include <cstdint>
 #include <mutex>
-#include <thread>
-#include <memory>
+#include <pthread.h>
 
 class CImageStore;
 class CSettingsRegistry;
@@ -58,7 +57,7 @@ public:
 		~task_t();
 
 		CUnusualObjectDetector* self;
-		std::thread thread;
+		pthread_t thread;
 
 		jobType job;
 
@@ -85,9 +84,12 @@ private:
 
 	void initialiseWorkerThreads();
 
+	static void* MainThreadFunction(void* arg);
 	void mainThreadFunction();
 
+	static void* WorkerThreadFunction(void* arg);
 	void workerThreadFunction(task_t* task);
+
 	void dispatchWorkerThreads(jobType jobType);
 	void waitForWorkerThreadCompletion();
 
@@ -101,7 +103,7 @@ private:
 	CImageStore*                    _imageStore;
 	ILiveResultManager*             _resultManager;
 	CHogStore*                      _hogStore;
-	std::shared_ptr<IExternalInterface> _externalInterface;
+	IExternalInterface*             _externalInterface;
 	CRestController*                _restController;
 
 	CModel*                         _model;
@@ -115,7 +117,7 @@ private:
 	bool                            _keepImages;
 	CHog*                           _newHog;
 
-	std::thread                     _mainThread;
+	pthread_t                       _mainThread;
 
 	std::vector<task_t*>            _tasks;
 

@@ -7,7 +7,7 @@
 
 #include "../external_interface/IExternalInterface.h"
 
-CScoreDistributionRequestHandler::CScoreDistributionRequestHandler(std::shared_ptr<IExternalInterface> externalInterface) :
+CScoreDistributionRequestHandler::CScoreDistributionRequestHandler(IExternalInterface* externalInterface) :
 _externalInterface( externalInterface )
 {
 
@@ -47,7 +47,8 @@ int CScoreDistributionRequestHandler::handleRequest(struct MHD_Connection* conne
 	const char* json = s.GetString();
 	uint32_t length = s.GetSize();
 
-	struct MHD_Response * response = MHD_create_response_from_buffer(length, const_cast<char*>(json), MHD_RESPMEM_MUST_COPY);
+	struct MHD_Response* response = MHD_create_response_from_buffer(length, const_cast<char*>(json), MHD_RESPMEM_MUST_COPY);
+	MHD_add_response_header(response, "content-type", "application/json");
 
 	int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
 	MHD_destroy_response(response);

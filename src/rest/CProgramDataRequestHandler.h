@@ -4,14 +4,12 @@
 #include "http/IHttpRequestHandler.h"
 #include <ILiveResultManager.h>
 
-#include <memory>
-
 class IExternalInterface;
 
 class CProgramDataRequestHandler: public IHttpRequestHandler, public ILiveResultManager
 {
 public:
-	CProgramDataRequestHandler(std::shared_ptr<IExternalInterface> externalInterface);
+	CProgramDataRequestHandler(IExternalInterface* externalInterface);
 	virtual ~CProgramDataRequestHandler();
 
 	bool validPath(const char* path, const char* method);
@@ -20,7 +18,7 @@ public:
 	void setMatchImage(uint32_t sourceImageId, uint32_t matchImageId, float score, bool isUnusual);
 
 private:
-	std::shared_ptr<IExternalInterface> _externalInterface;
+	IExternalInterface* _externalInterface;
 
 	uint32_t _sourceImageId;
 	uint32_t _matchImageId;

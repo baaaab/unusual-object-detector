@@ -2,7 +2,7 @@
 <head>
 	<title>Unusual Object Detector</title>
 	<script type="text/javascript" src="jslib/angular.min.js"></script>
-	<script type="text/javascript" src="jslib/dygraphs-combined.js"></script>
+	<script type="text/javascript" src="jslib/dygraph-combined.js"></script>
 	<script type="text/javascript" src="js/uod.module.js"></script>
 	<script type="text/javascript" src="js/uod.controller.js"></script>
 </head>
@@ -28,6 +28,13 @@
 			Opacity:<input type="text" ng-model="vm.opacity" />
 		</td>
 	</tr>
+	<tr>
+		<td colspan="3">
+			<div id="scores_plot" style="width:1000px;height:120px;"></div>
+		</td>
 </table>
+<div ng-repeat="unusualImage in vm.unusualImageList">
+<img src="imageProvider/{{unusualImage}}.jpg" /><span>{{unusualImage}}</span>
+</div>
 </body>
 </html>

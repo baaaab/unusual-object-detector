@@ -3,8 +3,6 @@
 
 #include <ILiveResultManager.h>
 
-#include <memory>
-
 class IExternalInterface;
 class CHttpServer;
 class CSettingsRegistry;
@@ -14,11 +12,13 @@ class CHogDataRequestHandler;
 class CRchDataRequestHandler;
 class CScoreDistributionRequestHandler;
 class CImageRequestHandler;
+class CHogImageRequestHandler;
+class CUnusualImageListRequestHandler;
 
 class CRestController : public ILiveResultManager
 {
 public:
-	CRestController(CSettingsRegistry* settings, std::shared_ptr<IExternalInterface> externalInterface);
+	CRestController(CSettingsRegistry* settings, IExternalInterface* externalInterface);
 	~CRestController();
 
 	void initialise();
@@ -27,15 +27,17 @@ public:
 
 private:
 	CSettingsRegistry* _settings;
-	std::shared_ptr<IExternalInterface> _externalInterface;
+	IExternalInterface* _externalInterface;
 	CHttpServer* _server;
 
 	CStaticPageRequestHandler* _staticHtmlRequestHandler;
 	CImageRequestHandler* _imageRequestHandler;
+	CHogImageRequestHandler* _hogImageRequestHandler;
 	CProgramDataRequestHandler* _programDataHandler;
 	CHogDataRequestHandler* _hogDataRequestHandler;
 	CRchDataRequestHandler* _rchDataRequestHandler;
 	CScoreDistributionRequestHandler* _scoreDistributionRequestHandler;
+	CUnusualImageListRequestHandler* _unusualImageListRequestHandler;
 
 	bool _initialised;
 
